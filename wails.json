@@ -1,0 +1,19 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "geda-clipboard",
+  "outputfilename": "Geda Clipboard",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "info": {
+    "productName": "Geda Clipboard",
+    "productVersion": "0.1.0",
+    "comments": "Menu bar clipboard manager with copy and paste notifications",
+    "copyright": "© 2026 Ân Vũ"
+  },
+  "author": {
+    "name": "Ân Vũ",
+    "email": "8651688+thienanblog@users.noreply.github.com"
+  }
+}

@@ -1,0 +1,158 @@
+/* Geda Clipboard — popup chrome and shared tokens.
+   The window is frameless and translucent, so the panel draws its own
+   background, border and rounded corners. */
+
+:root {
+  --radius-panel: 12px;
+  --radius-row: 6px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter",
+    system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --row-h: 30px;
+  --pad-x: 12px;
+
+  /* Dark is the default: it matches a menu bar popover on both platforms. */
+  --panel-bg: rgba(40, 40, 43, 0.82);
+  --panel-border: rgba(255, 255, 255, 0.12);
+  --panel-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+
+  --fg: rgba(255, 255, 255, 0.92);
+  --fg-dim: rgba(255, 255, 255, 0.55);
+  --fg-faint: rgba(255, 255, 255, 0.38);
+
+  --accent: #0a63d4;
+  --accent-fg: #ffffff;
+
+  --hairline: rgba(255, 255, 255, 0.1);
+  --hover-bg: rgba(255, 255, 255, 0.07);
+  --field-bg: rgba(255, 255, 255, 0.1);
+
+  --bubble-bg: rgba(58, 58, 62, 0.97);
+  --bubble-border: rgba(255, 255, 255, 0.14);
+
+  --danger: #ff6b6b;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --panel-bg: rgba(246, 246, 248, 0.86);
+    --panel-border: rgba(0, 0, 0, 0.12);
+    --panel-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+
+    --fg: rgba(0, 0, 0, 0.88);
+    --fg-dim: rgba(0, 0, 0, 0.55);
+    --fg-faint: rgba(0, 0, 0, 0.38);
+
+    --accent: #1a6ee0;
+
+    --hairline: rgba(0, 0, 0, 0.1);
+    --hover-bg: rgba(0, 0, 0, 0.05);
+    --field-bg: rgba(0, 0, 0, 0.06);
+
+    --bubble-bg: rgba(252, 252, 253, 0.98);
+    --bubble-border: rgba(0, 0, 0, 0.12);
+
+    --danger: #c0392b;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fg);
+  /* Transparent so the native translucent window shows through. */
+  background: transparent;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  /* A clipboard popup is chrome, not a document: no text selection or native
+     drag behaviour. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+.panel {
+  /* Positioning context for the detail card and the error toast. */
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+
+input,
+select,
+button,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Thin overlay scrollbars, matching the reference. */
+.scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fg-faint) transparent;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  background: var(--fg-faint);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-dim);
+  background-clip: content-box;
+}
+
+/* Keyboard accelerator hint, e.g. "⌘ 1". */
+.accel {
+  flex: none;
+  color: var(--fg-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.row-selected .accel {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.hairline {
+  height: 1px;
+  background: var(--hairline);
+  flex: none;
+}
