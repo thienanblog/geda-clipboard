@@ -85,11 +85,20 @@ func (s *Settings) normalise() {
 	if s.Hotkey == "" {
 		s.Hotkey = d.Hotkey
 	}
+	// Bounds match the min/max the preferences UI advertises. The upper ones
+	// matter: a number field does not enforce max for a typed value, and a
+	// popup larger than the screen cannot be dismissed from its own footer.
 	if s.PopupWidth < 360 {
 		s.PopupWidth = d.PopupWidth
 	}
+	if s.PopupWidth > 1600 {
+		s.PopupWidth = 1600
+	}
 	if s.PopupHeight < 240 {
 		s.PopupHeight = d.PopupHeight
+	}
+	if s.PopupHeight > 1200 {
+		s.PopupHeight = 1200
 	}
 	if s.IgnoredApps == nil {
 		s.IgnoredApps = []string{}
@@ -108,16 +117,18 @@ type Manager struct {
 }
 
 // Load reads settings from disk, falling back to defaults for a fresh install
-// or an unreadable file.
+// or an unreadable file. The Manager is always usable, even when an error is
+// returned: callers report the problem but keep running on defaults.
 func Load() (*Manager, error) {
+	m := &Manager{current: Defaults()}
+
 	dir, err := appdir.Data()
 	if err != nil {
-		return nil, err
+		// No data directory at all. Serve defaults from memory; Save will
+		// report that it has nowhere to write.
+		return m, err
 	}
-	m := &Manager{
-		current: Defaults(),
-		path:    filepath.Join(dir, "settings.json"),
-	}
+	m.path = filepath.Join(dir, "settings.json")
 
 	raw, err := os.ReadFile(m.path)
 	if err != nil {
@@ -164,6 +175,10 @@ func (m *Manager) Save(s Settings) (Settings, error) {
 	path := m.path
 	cb := m.onChange
 	m.mu.Unlock()
+
+	if path == "" {
+		return s, errors.New("no data directory: preferences cannot be saved")
+	}
 
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

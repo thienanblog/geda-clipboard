@@ -192,6 +192,22 @@ function onRowMouseDown(event: MouseEvent): void {
   event.preventDefault()
 }
 
+/** The search field keeps focus the whole time the popup is open, so chords
+ *  that mean something to a text field have to be handed back to it -- but only
+ *  when there is actually text to act on. With an empty field ⌥⌫ has no word to
+ *  delete and ⌘C has nothing to copy, which is when they should reach the list
+ *  instead. Without this, ⌥⌫ silently deletes a history entry while the user is
+ *  trying to correct their query. */
+function searchHasText(): boolean {
+  return searchEl.value === document.activeElement && query.value !== ''
+}
+
+function searchHasSelection(): boolean {
+  const el = searchEl.value
+  if (el !== document.activeElement || !el) return false
+  return el.selectionStart !== el.selectionEnd
+}
+
 function onKeydown(event: KeyboardEvent): void {
   // Numeric accelerators: ⌘1..⌘9 / Ctrl+1..9.
   if (hasPrimary(event) && /^Digit[1-9]$/.test(event.code)) {
@@ -230,8 +246,10 @@ function onKeydown(event: KeyboardEvent): void {
     return
   }
 
-  // ⌥⌫ deletes the selected entry.
+  // ⌥⌫ deletes the selected entry, unless the user is deleting a word of their
+  // search query.
   if (event.altKey && (event.code === 'Backspace' || event.code === 'Delete')) {
+    if (searchHasText()) return
     event.preventDefault()
     void remove(selected.value)
     return
@@ -244,8 +262,9 @@ function onKeydown(event: KeyboardEvent): void {
     return
   }
 
-  // ⌘C copies without pasting.
+  // ⌘C copies without pasting, unless the user is copying selected search text.
   if (hasPrimary(event) && event.code === 'KeyC') {
+    if (searchHasSelection()) return
     event.preventDefault()
     void copyOnly(selected.value)
     return

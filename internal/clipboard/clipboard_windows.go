@@ -4,9 +4,12 @@ package clipboard
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	xclipboard "golang.design/x/clipboard"
@@ -20,11 +23,18 @@ var (
 	procGetClipboardSequenceNumber = user32.NewProc("GetClipboardSequenceNumber")
 	procIsClipboardFormatAvailable = user32.NewProc("IsClipboardFormatAvailable")
 	procRegisterClipboardFormatW   = user32.NewProc("RegisterClipboardFormatW")
+	procOpenClipboard              = user32.NewProc("OpenClipboard")
+	procCloseClipboard             = user32.NewProc("CloseClipboard")
+	procGetClipboardData           = user32.NewProc("GetClipboardData")
 	procGetForegroundWindow        = user32.NewProc("GetForegroundWindow")
 	procSetForegroundWindow        = user32.NewProc("SetForegroundWindow")
 	procGetWindowThreadProcessId   = user32.NewProc("GetWindowThreadProcessId")
 	procSendInput                  = user32.NewProc("SendInput")
 	procQueryFullProcessImageNameW = kernel32.NewProc("QueryFullProcessImageNameW")
+	procGlobalLock                 = kernel32.NewProc("GlobalLock")
+	procGlobalUnlock               = kernel32.NewProc("GlobalUnlock")
+	procGlobalSize                 = kernel32.NewProc("GlobalSize")
+	procRtlMoveMemory              = kernel32.NewProc("RtlMoveMemory")
 )
 
 // initOnce guards x/clipboard, which must be initialised before use.
@@ -81,15 +91,80 @@ func formatPresent(name string) bool {
 	return ret != 0
 }
 
+// optedOut reports whether the source app published name with a DWORD payload
+// of 0, which is how Windows apps decline clipboard history and cloud sync.
+//
+// The value carries the meaning, not the presence: the same format set to 1 is
+// an explicit opt *in*. An absent format means the app expressed no preference,
+// which is not an opt-out either.
+func optedOut(name string) bool {
+	id := registerFormat(name)
+	if id == 0 || !formatPresent(name) {
+		return false
+	}
+
+	// GetClipboardData is only valid on the thread that opened the clipboard, so
+	// pin the goroutine for the duration.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	if err := openClipboardRetry(); err != nil {
+		// Another process holds the clipboard. Treating that as "no preference"
+		// would risk recording a payload the app asked us to skip, so err
+		// towards excluding it.
+		return true
+	}
+	defer procCloseClipboard.Call()
+
+	hMem, _, _ := procGetClipboardData.Call(uintptr(id))
+	if hMem == 0 {
+		return false
+	}
+	if size, _, _ := procGlobalSize.Call(hMem); size < 4 {
+		return false
+	}
+	ptr, _, _ := procGlobalLock.Call(hMem)
+	if ptr == 0 {
+		return false
+	}
+	defer procGlobalUnlock.Call(hMem)
+
+	// Copy the DWORD out rather than casting the locked address to a Go
+	// pointer: passing it straight back to a syscall keeps this free of the
+	// uintptr-to-unsafe.Pointer conversion that go vet rightly objects to.
+	var value uint32
+	procRtlMoveMemory.Call(uintptr(unsafe.Pointer(&value)), ptr, unsafe.Sizeof(value))
+
+	return value == 0
+}
+
+// openClipboardRetry opens the clipboard, retrying briefly: another process may
+// hold it for a moment after a copy.
+func openClipboardRetry() error {
+	var lastErr error
+	for i := 0; i < 5; i++ {
+		ret, _, err := procOpenClipboard.Call(0)
+		if ret != 0 {
+			return nil
+		}
+		lastErr = err
+		time.Sleep(10 * time.Millisecond)
+	}
+	return lastErr
+}
+
 func read() (Snapshot, error) {
 	if err := ensureInit(); err != nil {
 		return Snapshot{}, err
 	}
 
+	// ExcludeClipboardContentFromMonitorProcessing is a bare marker: publishing
+	// it at all is the request. The other two carry a DWORD, where 0 means
+	// "don't" and 1 means "you may", so their value has to be read.
 	snap := Snapshot{
 		Concealed: formatPresent("ExcludeClipboardContentFromMonitorProcessing"),
-		Transient: formatPresent("CanIncludeInClipboardHistory") &&
-			!formatPresent("CanUploadToCloudClipboard"),
+		Transient: optedOut("CanIncludeInClipboardHistory") ||
+			optedOut("CanUploadToCloudClipboard"),
 	}
 
 	// Prefer text: on Windows a copied image usually offers no text at all,
@@ -210,24 +285,55 @@ const (
 	keyEventFScanCode = 0x0008
 )
 
-// keyboardInput mirrors the KEYBDINPUT half of INPUT. The union in INPUT is
-// sized by the largest member (MOUSEINPUT), so the struct is padded to match.
+// keyboardInput mirrors INPUT holding its KEYBDINPUT member. The layout has to
+// match the C struct exactly, because SendInput rejects the call outright when
+// cbSize is not sizeof(INPUT).
+//
+// The union is 8-aligned on the 64-bit targets Wails builds for (MOUSEINPUT
+// ends in a ULONG_PTR), so it starts at offset 8 rather than 4 and the whole
+// struct is 40 bytes: type@0, wVk@8, wScan@10, dwFlags@12, time@16,
+// dwExtraInfo@24, union tail padding@32. The explicit padding fields below
+// reproduce that; without them Go packs the struct into 32 bytes with wVk at
+// offset 4 and every SendInput call fails with ERROR_INVALID_PARAMETER.
 type keyboardInput struct {
-	kind    uint32
-	vk      uint16
-	scan    uint16
-	flags   uint32
-	time    uint32
-	extra   uintptr
-	padding [8]byte
+	kind uint32
+	_    uint32 // union alignment
+	vk   uint16
+	scan uint16
+
+	flags uint32
+	time  uint32
+	_     uint32 // dwExtraInfo alignment
+	extra uintptr
+
+	// Tail padding: the union is sized by MOUSEINPUT, which is larger than
+	// KEYBDINPUT.
+	_ [8]byte
 }
 
-func sendKey(vk uint16, keyUp bool) {
+// Compile-time checks that the struct still matches INPUT. Getting this wrong
+// is silent at runtime -- SendInput simply refuses the call -- so fail the
+// build instead. Any deviation makes one of these constants overflow.
+//
+// The size alone is not enough: dropping the first padding field happens to
+// leave the total at 40 while shifting wVk to offset 4, so pin the field
+// offsets too.
+const (
+	_ = uint(unsafe.Sizeof(keyboardInput{}) - 40)
+	_ = uint(unsafe.Offsetof(keyboardInput{}.vk) - 8)
+	_ = uint(unsafe.Offsetof(keyboardInput{}.scan) - 10)
+	_ = uint(unsafe.Offsetof(keyboardInput{}.flags) - 12)
+	_ = uint(unsafe.Offsetof(keyboardInput{}.time) - 16)
+	_ = uint(unsafe.Offsetof(keyboardInput{}.extra) - 24)
+)
+
+func sendKey(vk uint16, keyUp bool) bool {
 	in := keyboardInput{kind: inputKeyboard, vk: vk}
 	if keyUp {
 		in.flags = keyEventFKeyUp
 	}
-	procSendInput.Call(1, uintptr(unsafe.Pointer(&in)), unsafe.Sizeof(in))
+	sent, _, _ := procSendInput.Call(1, uintptr(unsafe.Pointer(&in)), unsafe.Sizeof(in))
+	return sent == 1
 }
 
 func paste() error {
@@ -237,14 +343,40 @@ func paste() error {
 
 	if target != 0 {
 		procSetForegroundWindow.Call(target)
+
+		// Activation is asynchronous, and Windows refuses SetForegroundWindow
+		// outright in several cases (foreground lock timeout, minimised target).
+		// Sending the keystroke before the target is actually foreground would
+		// paste into whatever window still has focus, so wait for it.
+		if !waitForForeground(target, 400*time.Millisecond) {
+			return fmt.Errorf("could not focus the target window")
+		}
 	}
 
 	// Ctrl down, V down, V up, Ctrl up.
-	sendKey(vkControl, false)
-	sendKey(vkV, false)
-	sendKey(vkV, true)
-	sendKey(vkControl, true)
+	ok := sendKey(vkControl, false)
+	ok = sendKey(vkV, false) && ok
+	ok = sendKey(vkV, true) && ok
+	ok = sendKey(vkControl, true) && ok
+	if !ok {
+		return fmt.Errorf("the paste keystroke was blocked")
+	}
 	return nil
+}
+
+// waitForForeground polls until hwnd is the foreground window or timeout
+// elapses, reporting whether it got there.
+func waitForForeground(hwnd uintptr, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if current, _, _ := procGetForegroundWindow.Call(); current == hwnd {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func hasPastePermission(prompt bool) bool { return true }

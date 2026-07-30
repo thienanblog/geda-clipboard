@@ -1,5 +1,7 @@
 # Geda Clipboard
 
+[![CI](https://github.com/thienanblog/geda-clipboard/actions/workflows/ci.yml/badge.svg)](https://github.com/thienanblog/geda-clipboard/actions/workflows/ci.yml)
+
 A menu bar / system tray clipboard manager for macOS and Windows, built with Go
 and [Wails v2](https://wails.io). Inspired by [Maccy](https://github.com/p0deje/Maccy).
 
@@ -35,10 +37,25 @@ were working in.
 
 ## Requirements
 
-- Go 1.23+
+- Go 1.25+ (see `go.mod`)
 - Node 18+
 - [Wails CLI v2](https://wails.io/docs/gettingstarted/installation)
 - macOS: Xcode command line tools (the app uses cgo for AppKit)
+
+## Install
+
+There are no prebuilt downloads: releases ship source only, because the
+binaries are unsigned and macOS Gatekeeper would block them without any useful
+explanation. Build from a tagged release, or from `main` for the latest work:
+
+```bash
+git clone https://github.com/thienanblog/geda-clipboard.git
+cd geda-clipboard
+git checkout v0.1.0
+wails build
+```
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Build and run
 
@@ -59,13 +76,16 @@ For development, with hot reload and a browser-accessible UI at
 wails dev
 ```
 
-Cross-compile check for Windows from any host:
+Cross-compile check for the Windows sources from any host:
 
 ```bash
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build ./...
+GOOS=windows GOARCH=amd64 go vet ./internal/...
 ```
 
-Run the tests:
+This deliberately excludes the root package, which embeds `frontend/dist` and
+therefore cannot be loaded until the frontend has been built.
+
+Run the tests (after a `wails build`, for the same reason):
 
 ```bash
 go test ./...
@@ -106,6 +126,12 @@ The app is a menu bar accessory (`LSUIElement`), so it has no Dock icon.
 | Preferences | `⌘,` |
 | Clear search, then close | `Esc` |
 | Quit | `⌘Q` |
+
+The search field keeps focus while the popup is open, so two of these defer to
+it when there is text to act on: `⌥⌫` deletes the previous word of a non-empty
+query rather than an entry, and `⌘C` copies a selection in the field rather than
+the highlighted entry. With the query empty they act on the list as listed
+above.
 
 ## Where data lives
 
@@ -172,7 +198,37 @@ goroutine that races `[NSApp run]`.
 - **The Windows tray anchor is approximate.** Windows exposes no supported way
   to query a notification icon's rectangle, so the cursor position at click time
   is used instead.
-- **Windows is compile-verified only.** The Windows platform layer builds and
-  vets cleanly via cross-compilation but has not been run on a Windows host.
+- **Windows has no interactive testing.** CI builds and tests it on a Windows
+  host, but nobody has used it on a Windows desktop. The `INPUT` struct
+  SendInput depends on is pinned by compile-time size and
+  offset assertions, since getting it wrong fails silently at runtime.
 - **Multi-monitor popup placement** follows the screen the window is currently
   on, which can differ from the screen holding the tray icon.
+
+## Cutting a release
+
+The version appears in two files and a test fails if they disagree:
+
+| File | Field |
+| --- | --- |
+| `main.go` | `appVersion` — reported in the About panel |
+| `wails.json` | `info.productVersion` — templated into the macOS `Info.plist` and the Windows resource block |
+
+1. Bump both to the same bare semver (`1.2.3`, no leading `v`).
+2. Move the `Unreleased` entries in [CHANGELOG.md](CHANGELOG.md) under the new
+   version with today's date, and update the link definitions at the bottom.
+3. Merge to `main` and wait for CI to pass on both platforms.
+4. Tag and publish:
+
+   ```bash
+   git tag -a v1.2.3 -m "v1.2.3"
+   git push origin v1.2.3
+   gh release create v1.2.3 --title "v1.2.3" --notes-file <(sed -n '/## \[1.2.3\]/,/## \[/p' CHANGELOG.md)
+   ```
+
+`appVersion` can also be overridden at build time without editing the source,
+which is useful for nightly builds:
+
+```bash
+wails build -ldflags "-X main.appVersion=1.2.3-nightly"
+```

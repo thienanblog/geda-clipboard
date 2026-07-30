@@ -254,8 +254,12 @@ func (s *Store) Add(c Capture) (*Item, bool, error) {
 	if c.Kind == KindImage {
 		path := filepath.Join(blobDir, item.ImageFile)
 		if err := appdir.WriteAtomic(path, c.Image, 0o600); err != nil {
-			// Roll the entry back rather than keeping a dangling reference.
+			// Roll the entry back rather than keeping a dangling reference. The
+			// entries evicted to make room for it are already out of the index,
+			// so their blobs still have to go -- otherwise the failure path
+			// leaves files nothing will ever reference again.
 			s.Delete(item.ID)
+			s.removeBlobs(evicted)
 			return nil, false, fmt.Errorf("write image blob: %w", err)
 		}
 	}
@@ -349,7 +353,10 @@ func matches(it *Item, needle string) bool {
 	if strings.Contains(strings.ToLower(it.SourceApp), needle) {
 		return true
 	}
-	if it.Kind == KindImage && strings.Contains("image", needle) {
+	// Let "ima", "image" and so on find image entries, but not a single letter:
+	// Contains with the arguments this way round would make "a", "e", "g", "i"
+	// and "m" each match every image in the history.
+	if it.Kind == KindImage && len(needle) >= 2 && strings.HasPrefix("image", needle) {
 		return true
 	}
 	return false

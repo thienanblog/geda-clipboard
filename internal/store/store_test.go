@@ -160,6 +160,82 @@ func TestSearch(t *testing.T) {
 	}
 }
 
+// "ima" should find images, but a single letter must not: matching every image
+// on "a", "e", "g", "i" or "m" would swamp the list on the first keystroke.
+func TestSearchMatchesImagesOnlyOnAMeaningfulPrefix(t *testing.T) {
+	s := newStore(t, 10)
+
+	if _, _, err := s.Add(Capture{
+		Kind:  KindImage,
+		Image: pngBytes(t, 2, 2, color.RGBA{0, 0, 255, 255}),
+		At:    time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	addText(t, s, "unrelated text", time.Now())
+
+	for _, needle := range []string{"im", "ima", "image"} {
+		if got := s.List(needle); len(got) != 1 || got[0].Kind != KindImage {
+			t.Errorf("List(%q) = %d entries, want the one image", needle, len(got))
+		}
+	}
+	for _, needle := range []string{"a", "e", "g", "i", "m"} {
+		for _, it := range s.List(needle) {
+			if it.Kind == KindImage {
+				t.Errorf("List(%q) matched an image on a single letter", needle)
+			}
+		}
+	}
+}
+
+// A failed blob write rolls the entry back. The entries evicted to make room
+// for it are already out of the index, so their blobs have to go too --
+// otherwise nothing will ever reference or clean them up again.
+func TestFailedBlobWriteDoesNotOrphanEvictedBlobs(t *testing.T) {
+	dir := t.TempDir()
+	s, err := OpenAt(dir, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+
+	first, _, err := s.Add(Capture{
+		Kind:  KindImage,
+		Image: pngBytes(t, 2, 2, color.RGBA{255, 0, 0, 255}),
+		At:    time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blobs := filepath.Join(dir, "blobs")
+	evictedBlob := filepath.Join(blobs, first.ImageFile)
+
+	// Make the *next* blob path a non-empty directory so the atomic rename onto
+	// it fails. The blob directory itself stays writable, so the rollback can
+	// still clean up -- a read-only directory would block that too and prove
+	// nothing.
+	var n int
+	if _, err := fmt.Sscanf(first.ID, "i%d", &n); err != nil {
+		t.Fatalf("unexpected ID format %q: %v", first.ID, err)
+	}
+	blocker := filepath.Join(blobs, fmt.Sprintf("i%d.png", n+1))
+	if err := os.MkdirAll(filepath.Join(blocker, "occupied"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := s.Add(Capture{
+		Kind:  KindImage,
+		Image: pngBytes(t, 3, 3, color.RGBA{0, 255, 0, 255}),
+		At:    time.Now().Add(time.Second),
+	}); err == nil {
+		t.Fatal("the blob write should have failed; the test cannot exercise rollback")
+	}
+
+	if _, err := os.Stat(evictedBlob); !os.IsNotExist(err) {
+		t.Error("the evicted entry's blob was left behind by the rollback path")
+	}
+}
+
 func TestDeleteAndClear(t *testing.T) {
 	s := newStore(t, 10)
 	base := time.Now()
