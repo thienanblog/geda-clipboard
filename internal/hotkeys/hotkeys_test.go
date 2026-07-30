@@ -1,6 +1,7 @@
 package hotkeys
 
 import (
+	"errors"
 	"testing"
 
 	"golang.design/x/hotkey"
@@ -90,5 +91,124 @@ func TestParseModifierAliases(t *testing.T) {
 				t.Errorf("got %d modifiers, want 1", len(mods))
 			}
 		})
+	}
+}
+
+// fakeRegistration stands in for a real global hotkey so the failure path can
+// be exercised without a window server.
+type fakeRegistration struct {
+	err          error
+	keydown      chan hotkey.Event
+	unregistered bool
+}
+
+func (f *fakeRegistration) Register() error              { return f.err }
+func (f *fakeRegistration) Unregister() error            { f.unregistered = true; return nil }
+func (f *fakeRegistration) Keydown() <-chan hotkey.Event { return f.keydown }
+
+// swapRegistrations installs a fake factory returning each entry of fakes in
+// order, and restores the real one afterwards.
+func swapRegistrations(t *testing.T, fakes ...*fakeRegistration) {
+	t.Helper()
+	original := newRegistration
+	i := 0
+	newRegistration = func([]hotkey.Modifier, hotkey.Key) registration {
+		if i >= len(fakes) {
+			t.Fatalf("newRegistration called %d times, only %d fakes provided", i+1, len(fakes))
+		}
+		f := fakes[i]
+		i++
+		return f
+	}
+	t.Cleanup(func() { newRegistration = original })
+}
+
+func newFake(err error) *fakeRegistration {
+	return &fakeRegistration{err: err, keydown: make(chan hotkey.Event)}
+}
+
+// The point of registering before unregistering: a combination another
+// application already owns must leave the working shortcut in place, rather
+// than leaving the user with no shortcut at all.
+func TestRegisterKeepsTheOldShortcutWhenTheNewOneIsTaken(t *testing.T) {
+	working := newFake(nil)
+	taken := newFake(errors.New("hotkey is already registered"))
+	swapRegistrations(t, working, taken)
+
+	m := New(func() {})
+	if err := m.Register("cmd+shift+v"); err != nil {
+		t.Fatalf("first Register: %v", err)
+	}
+	if m.Spec() != "cmd+shift+v" {
+		t.Fatalf("Spec = %q, want cmd+shift+v", m.Spec())
+	}
+
+	if err := m.Register("cmd+shift+c"); err == nil {
+		t.Fatal("Register should report that the combination is taken")
+	}
+
+	if m.Spec() != "cmd+shift+v" {
+		t.Errorf("Spec = %q, want the previous shortcut to survive a failed swap", m.Spec())
+	}
+	if working.unregistered {
+		t.Error("the working shortcut was released even though the new one failed")
+	}
+}
+
+func TestRegisterSwapsShortcutsOnSuccess(t *testing.T) {
+	first := newFake(nil)
+	second := newFake(nil)
+	swapRegistrations(t, first, second)
+
+	m := New(func() {})
+	if err := m.Register("cmd+shift+v"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Register("ctrl+alt+k"); err != nil {
+		t.Fatal(err)
+	}
+
+	if !first.unregistered {
+		t.Error("the previous shortcut should be released once the new one is claimed")
+	}
+	if m.Spec() != "ctrl+alt+k" {
+		t.Errorf("Spec = %q, want ctrl+alt+k", m.Spec())
+	}
+}
+
+// Re-registering the same spec must not try to claim a combination we already
+// hold, which would collide with itself.
+func TestRegisterSameSpecIsANoop(t *testing.T) {
+	only := newFake(nil)
+	swapRegistrations(t, only)
+
+	m := New(func() {})
+	if err := m.Register("cmd+shift+v"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Register("cmd+shift+v"); err != nil {
+		t.Fatalf("re-registering the same spec: %v", err)
+	}
+	if only.unregistered {
+		t.Error("the shortcut should still be held")
+	}
+}
+
+func TestRegisterEmptySpecUnregisters(t *testing.T) {
+	only := newFake(nil)
+	swapRegistrations(t, only)
+
+	m := New(func() {})
+	if err := m.Register("cmd+shift+v"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Register(""); err != nil {
+		t.Fatalf("Register(\"\"): %v", err)
+	}
+	if !only.unregistered {
+		t.Error("an empty spec should release the current shortcut")
+	}
+	if m.Spec() != "" {
+		t.Errorf("Spec = %q, want empty", m.Spec())
 	}
 }

@@ -89,6 +89,24 @@ async function save(): Promise<void> {
   }
 }
 
+/** Commits a numeric field. Vue's `.number` modifier leaves the raw string in
+ *  place when it cannot be parsed, so an emptied field would send "" where Go
+ *  expects an int -- which fails to unmarshal and then blocks every later save
+ *  too, because the bad value stays in cfg. Fall back to the stored value and
+ *  let Go clamp the rest. */
+function onNumberChange(field: 'maxItems' | 'popupWidth' | 'popupHeight'): void {
+  if (!cfg.value) return
+  // The runtime type is whatever the modifier produced, not necessarily number.
+  const raw = cfg.value[field] as unknown
+  const value = typeof raw === 'number' ? raw : Number(String(raw).trim())
+  if (!Number.isFinite(value) || String(raw).trim() === '') {
+    void load() // discard the unusable input, restore what is on disk
+    return
+  }
+  cfg.value[field] = Math.round(value)
+  void save()
+}
+
 function onIgnoredInput(): void {
   if (!cfg.value) return
   cfg.value.ignoredApps = ignoredText.value
@@ -268,7 +286,7 @@ onUnmounted(() => {
               min="10"
               max="2000"
               step="10"
-              @change="save"
+              @change="onNumberChange('maxItems')"
             />
             <span class="field-suffix">entries</span>
           </div>
@@ -323,7 +341,7 @@ onUnmounted(() => {
               min="360"
               max="1600"
               step="20"
-              @change="save"
+              @change="onNumberChange('popupWidth')"
             />
             <span class="field-suffix">×</span>
             <input
@@ -333,7 +351,7 @@ onUnmounted(() => {
               min="240"
               max="1200"
               step="20"
-              @change="save"
+              @change="onNumberChange('popupHeight')"
             />
             <span class="field-suffix">px</span>
           </div>

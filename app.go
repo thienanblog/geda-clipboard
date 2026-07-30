@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"runtime"
@@ -73,6 +74,8 @@ func NewApp(trayIcon []byte) *App {
 		iconCache: make(map[string]string),
 	}
 
+	// Load always returns a usable Manager, so an error here means "running on
+	// defaults, changes will not persist" rather than "cannot start".
 	sm, err := settings.Load()
 	if err != nil {
 		log.Println("settings: falling back to defaults:", err)
@@ -255,6 +258,12 @@ func (a *App) appIcon(bundleID string) string {
 	}
 
 	url := imageutil.DataURL(clipboard.AppIconPNG(bundleID, appIconPx))
+	if url == "" {
+		// The lookup can fail for reasons that pass: an app on a volume that is
+		// briefly unavailable, or one Launch Services has not indexed yet.
+		// Caching the miss would hide that app's icon until the next restart.
+		return ""
+	}
 
 	a.mu.Lock()
 	a.iconCache[bundleID] = url
@@ -479,7 +488,7 @@ func (a *App) use(id string, pasteBack bool) error {
 		// sent, so report the shortfall rather than failing silently.
 		notify.Send(notify.Notification{
 			Title: "Copied, but could not paste",
-			Body:  "Grant Accessibility permission in System Settings › Privacy & Security › Accessibility to paste automatically.",
+			Body:  pasteFailureHint(err),
 		})
 		return fmt.Errorf("paste: %w", err)
 	}
@@ -492,6 +501,23 @@ func (a *App) use(id string, pasteBack bool) error {
 		a.notifyUsed(item, "Pasted", subtitle)
 	}
 	return nil
+}
+
+// pasteFailureHint explains what the user can do about a failed paste. Only
+// macOS gates synthetic keystrokes behind a permission; elsewhere a failure
+// means the target window would not take focus, which retrying usually fixes.
+func pasteFailureHint(err error) string {
+	if errors.Is(err, clipboard.ErrNoPastePermission) {
+		return "Grant Accessibility permission in System Settings › Privacy & Security › Accessibility to paste automatically."
+	}
+	return "The entry is on your clipboard — press " + pasteChord() + " to paste it yourself."
+}
+
+func pasteChord() string {
+	if runtime.GOOS == "darwin" {
+		return "⌘V"
+	}
+	return "Ctrl+V"
 }
 
 func (a *App) notifyUsed(item *store.Item, title, subtitle string) {

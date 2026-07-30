@@ -107,6 +107,12 @@ The app is a menu bar accessory (`LSUIElement`), so it has no Dock icon.
 | Clear search, then close | `Esc` |
 | Quit | `⌘Q` |
 
+The search field keeps focus while the popup is open, so two of these defer to
+it when there is text to act on: `⌥⌫` deletes the previous word of a non-empty
+query rather than an entry, and `⌘C` copies a selection in the field rather than
+the highlighted entry. With the query empty they act on the list as listed
+above.
+
 ## Where data lives
 
 - macOS: `~/Library/Application Support/geda-clipboard/`
@@ -174,5 +180,7 @@ goroutine that races `[NSApp run]`.
   is used instead.
 - **Windows is compile-verified only.** The Windows platform layer builds and
   vets cleanly via cross-compilation but has not been run on a Windows host.
+  The `INPUT` struct SendInput depends on is pinned by compile-time size and
+  offset assertions, since getting it wrong fails silently at runtime.
 - **Multi-monitor popup placement** follows the screen the window is currently
   on, which can differ from the screen holding the tray icon.

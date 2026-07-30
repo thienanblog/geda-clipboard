@@ -9,11 +9,25 @@ import (
 	"golang.design/x/hotkey"
 )
 
+// registration is the part of hotkey.Hotkey the Manager uses. It exists as an
+// interface so the interesting failure -- a combination another application
+// already owns -- can be exercised in a test without a window server.
+type registration interface {
+	Register() error
+	Unregister() error
+	Keydown() <-chan hotkey.Event
+}
+
+// newRegistration is a variable so tests can substitute a fake.
+var newRegistration = func(mods []hotkey.Modifier, key hotkey.Key) registration {
+	return hotkey.New(mods, key)
+}
+
 // Manager owns at most one registered hotkey and can swap it at runtime when
 // the user changes the preference.
 type Manager struct {
 	mu      sync.Mutex
-	current *hotkey.Hotkey
+	current registration
 	stop    chan struct{}
 	spec    string
 
@@ -37,6 +51,10 @@ func (m *Manager) Spec() string {
 
 // Register parses spec (e.g. "cmd+shift+v") and registers it, replacing any
 // previously registered shortcut. An empty spec just unregisters.
+//
+// The new shortcut is claimed before the old one is released, so a combination
+// that another application already owns leaves the working shortcut in place
+// instead of dropping the user to no shortcut at all.
 func (m *Manager) Register(spec string) error {
 	mods, key, err := Parse(spec)
 	if err != nil {
@@ -46,16 +64,20 @@ func (m *Manager) Register(spec string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.unregisterLocked()
-
 	if spec == "" {
+		m.unregisterLocked()
 		return nil
 	}
+	if m.current != nil && m.spec == spec {
+		return nil // already ours; re-claiming it would collide with itself
+	}
 
-	hk := hotkey.New(mods, key)
+	hk := newRegistration(mods, key)
 	if err := hk.Register(); err != nil {
 		return fmt.Errorf("register %q: %w", spec, err)
 	}
+
+	m.unregisterLocked()
 
 	m.current = hk
 	m.spec = spec
