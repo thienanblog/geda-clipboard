@@ -1,13 +1,13 @@
 <script lang="ts" setup>
 /** The menu bar popup: search field, clipboard history list with numeric
- *  accelerators, hover detail card and the action footer. */
+ *  accelerators, the detail column and the action footer. */
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { store } from '../../wailsjs/go/models'
 import * as App from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
-import { itemLabel } from '../lib/format'
+import { rowLabel } from '../lib/format'
 import { combo, hasPrimary, sym } from '../lib/keys'
-import DetailBubble from './DetailBubble.vue'
+import DetailPane from './DetailPane.vue'
 
 const emit = defineEmits<{
   /** Ask the shell to open preferences on a specific tab. */
@@ -18,20 +18,44 @@ const items = ref<store.Item[]>([])
 const query = ref('')
 const selected = ref(0)
 const searchEl = ref<HTMLInputElement | null>(null)
-const panelEl = ref<HTMLElement | null>(null)
+const bodyEl = ref<HTMLElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
 const rowEls = ref<HTMLElement[]>([])
-const bubbleRef = ref<{ $el: HTMLElement } | null>(null)
 
-/** Index of the row whose detail card is showing, or -1 for none. */
+/** Index of the row under the cursor, or -1 when the mouse is away. */
 const hovered = ref(-1)
-const hoverTop = ref(0)
 const previewOnHover = ref(true)
+
+/** Live width of the list and of the whole list area, kept by a
+ *  ResizeObserver: the popup size is user-configurable, so both the row text
+ *  budget and the decision to show the detail column depend on them. */
+const listWidth = ref(0)
+const bodyWidth = ref(0)
 
 const errorMessage = ref('')
 let errorTimer: number | undefined
 
 const empty = computed(() => items.value.length === 0)
+
+/** The detail column costs ~190-300px, which a narrow popup cannot spare. */
+const showDetail = computed(() => previewOnHover.value && bodyWidth.value >= 480)
+
+/** Hovering wins; with the mouse away the column follows keyboard selection. */
+const detailItem = computed<store.Item | null>(
+  () => items.value[hovered.value >= 0 ? hovered.value : selected.value] ?? null,
+)
+
+/** How many characters of a row's label actually fit. The reserved slice
+ *  covers the row padding, the pin glyph and the ⌘n accelerator; 6.6px is the
+ *  average advance of the 13px UI font. */
+const labelBudget = computed(() => {
+  if (listWidth.value === 0) return 60
+  return Math.max(16, Math.min(160, Math.round((listWidth.value - 115) / 6.6)))
+})
+
+function label(item: store.Item): string {
+  return rowLabel(item, labelBudget.value)
+}
 
 /** Only the first nine rows get a numeric accelerator, as in the reference. */
 function accelerator(index: number): string {
@@ -135,55 +159,17 @@ async function clearAll(): Promise<void> {
   }
 }
 
-function onRowEnter(index: number, event: MouseEvent): void {
+function onRowEnter(index: number): void {
   selected.value = index
-  if (!previewOnHover.value) return
-
-  hovered.value = index
-  hoverRow = event.currentTarget as HTMLElement
-  // The card's height depends on its content, so position it only once it has
-  // rendered and can be measured.
-  nextTick(positionBubble)
-}
-
-/** The row the detail card is currently anchored to. */
-let hoverRow: HTMLElement | null = null
-
-/** Aligns the detail card with the hovered row, then nudges it so the whole
- *  card stays within the list area rather than being clipped. */
-function positionBubble(): void {
-  const panel = panelEl.value
-  const list = listEl.value
-  const bubble = bubbleRef.value?.$el
-  if (!hoverRow || !panel || !list || !bubble) return
-
-  const panelTop = panel.getBoundingClientRect().top
-  const rowRect = hoverRow.getBoundingClientRect()
-  const listRect = list.getBoundingClientRect()
-
-  const margin = 6
-  const minTop = listRect.top - panelTop + margin
-  const maxTop = listRect.bottom - panelTop - bubble.offsetHeight - margin
-
-  const desired = rowRect.top - panelTop
-  hoverTop.value = Math.min(Math.max(desired, minTop), Math.max(minTop, maxTop))
+  if (previewOnHover.value) hovered.value = index
 }
 
 function onRowLeave(index: number): void {
-  if (hovered.value === index) {
-    hovered.value = -1
-    hoverRow = null
-  }
+  if (hovered.value === index) hovered.value = -1
 }
 
 function onListLeave(): void {
   hovered.value = -1
-  hoverRow = null
-}
-
-/** Scrolling moves the anchored row, so the card has to follow it. */
-function onListScroll(): void {
-  if (hovered.value >= 0) positionBubble()
 }
 
 /** Mouse-down on a row must not steal focus from the search field, otherwise
@@ -312,11 +298,22 @@ watch(query, () => {
 })
 
 let disposers: Array<() => void> = []
+let sizeObserver: ResizeObserver | undefined
+
+function measure(): void {
+  bodyWidth.value = bodyEl.value?.clientWidth ?? 0
+  listWidth.value = listEl.value?.clientWidth ?? 0
+}
 
 onMounted(() => {
   void reload()
   void loadSettings()
   focusSearch()
+
+  measure()
+  sizeObserver = new ResizeObserver(measure)
+  if (bodyEl.value) sizeObserver.observe(bodyEl.value)
+  if (listEl.value) sizeObserver.observe(listEl.value)
 
   window.addEventListener('keydown', onKeydown)
 
@@ -343,13 +340,14 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.clearTimeout(errorTimer)
+  sizeObserver?.disconnect()
   disposers.forEach((dispose) => dispose())
   disposers = []
 })
 </script>
 
 <template>
-  <div ref="panelEl" class="panel">
+  <div class="panel">
     <header class="header">
       <span class="brand">Geda</span>
       <div class="search">
@@ -372,44 +370,42 @@ onUnmounted(() => {
 
     <div class="hairline" />
 
-    <div ref="listEl" class="list scroll" @mouseleave="onListLeave" @scroll="onListScroll">
-      <p v-if="empty" class="empty">
-        {{ query ? 'No matching entries' : 'Clipboard history is empty' }}
-      </p>
+    <!-- The detail column is docked beside the list, never over it, so the row
+         being inspected stays visible. -->
+    <div ref="bodyEl" class="body">
+      <DetailPane v-if="showDetail" :item="detailItem" />
 
-      <button
-        v-for="(item, index) in items"
-        :key="item.id"
-        :ref="(el) => { if (el) rowEls[index] = el as HTMLElement }"
-        class="row"
-        :class="{ 'row-selected': index === selected }"
-        type="button"
-        @mousedown="onRowMouseDown"
-        @click="activate(index)"
-        @mouseenter="onRowEnter(index, $event)"
-        @mouseleave="onRowLeave(index)"
-      >
-        <svg v-if="item.pinned" class="pin" viewBox="0 0 16 16" aria-hidden="true">
-          <path
-            d="M9.5 1.5 14.5 6.5l-1.9.5-3 3 .4 3.3-1.3.5-2.2-3.4-3.6 3.6-.7-.7 3.6-3.6L2.4 7.5l.5-1.3 3.3.4 3-3 .3-2.1Z"
-            fill="currentColor"
-          />
-        </svg>
+      <div ref="listEl" class="list scroll" @mouseleave="onListLeave">
+        <p v-if="empty" class="empty">
+          {{ query ? 'No matching entries' : 'Clipboard history is empty' }}
+        </p>
 
-        <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="thumb" alt="" />
-        <span v-else class="label">{{ itemLabel(item) }}</span>
+        <button
+          v-for="(item, index) in items"
+          :key="item.id"
+          :ref="(el) => { if (el) rowEls[index] = el as HTMLElement }"
+          class="row"
+          :class="{ 'row-selected': index === selected }"
+          type="button"
+          @mousedown="onRowMouseDown"
+          @click="activate(index)"
+          @mouseenter="onRowEnter(index)"
+          @mouseleave="onRowLeave(index)"
+        >
+          <svg v-if="item.pinned" class="pin" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M9.5 1.5 14.5 6.5l-1.9.5-3 3 .4 3.3-1.3.5-2.2-3.4-3.6 3.6-.7-.7 3.6-3.6L2.4 7.5l.5-1.3 3.3.4 3-3 .3-2.1Z"
+              fill="currentColor"
+            />
+          </svg>
 
-        <span class="accel">{{ accelerator(index) }}</span>
-      </button>
+          <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="thumb" alt="" />
+          <span v-else class="label">{{ label(item) }}</span>
+
+          <span class="accel">{{ accelerator(index) }}</span>
+        </button>
+      </div>
     </div>
-
-    <!-- Outside the scrolling list: inside it, overflow clips the card. -->
-    <DetailBubble
-      v-if="hovered >= 0 && items[hovered]"
-      ref="bubbleRef"
-      :item="items[hovered]"
-      :top="hoverTop"
-    />
 
     <div class="hairline" />
 
@@ -486,9 +482,15 @@ onUnmounted(() => {
   color: var(--fg-faint);
 }
 
-.list {
+.body {
   flex: 1;
   min-height: 0;
+  display: flex;
+}
+
+.list {
+  flex: 1;
+  min-width: 0;
   padding: 5px 6px;
 }
 

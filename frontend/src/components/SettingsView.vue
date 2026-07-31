@@ -251,7 +251,7 @@ onUnmounted(() => {
           </label>
           <label class="check">
             <input v-model="cfg.previewOnHover" type="checkbox" @change="save" />
-            <span>Show the detail card when hovering an entry</span>
+            <span>Show the detail column beside the list</span>
           </label>
           <label class="check">
             <input v-model="cfg.launchAtLogin" type="checkbox" @change="save" />

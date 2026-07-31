@@ -29,8 +29,6 @@
   --hover-bg: rgba(255, 255, 255, 0.07);
   --field-bg: rgba(255, 255, 255, 0.1);
 
-  --bubble-bg: rgba(58, 58, 62, 0.97);
-  --bubble-border: rgba(255, 255, 255, 0.14);
 
   --danger: #ff6b6b;
 }
@@ -51,8 +49,6 @@
     --hover-bg: rgba(0, 0, 0, 0.05);
     --field-bg: rgba(0, 0, 0, 0.06);
 
-    --bubble-bg: rgba(252, 252, 253, 0.98);
-    --bubble-border: rgba(0, 0, 0, 0.12);
 
     --danger: #c0392b;
   }
@@ -87,7 +83,7 @@ body {
 }
 
 .panel {
-  /* Positioning context for the detail card and the error toast. */
+  /* Positioning context for the error toast. */
   position: relative;
   height: 100%;
   display: flex;

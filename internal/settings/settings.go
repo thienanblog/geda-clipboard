@@ -50,7 +50,8 @@ type Settings struct {
 	PopupWidth  int `json:"popupWidth"`
 	PopupHeight int `json:"popupHeight"`
 
-	// PreviewOnHover shows the detail bubble when hovering an entry.
+	// PreviewOnHover shows the detail column beside the list, which follows the
+	// entry under the cursor.
 	PreviewOnHover bool `json:"previewOnHover"`
 }
 

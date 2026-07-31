@@ -1,4 +1,4 @@
-/** Formatting helpers shared by the popup and the detail bubble. */
+/** Formatting helpers shared by the popup and the detail column. */
 
 /** Formats a Go time.Time (RFC3339 string) the way the reference app does:
  *  "July 30, 2026 10:40". Returns "" for missing/unparseable values. */
@@ -37,7 +37,7 @@ function toDate(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-/** Formats a byte count for the detail bubble. */
+/** Formats a byte count for the detail column. */
 export function formatBytes(bytes: number | undefined): string {
   if (!bytes || bytes < 0) return ''
   if (bytes < 1024) return `${bytes} B`
@@ -58,7 +58,27 @@ export function itemLabel(item: { kind: string; text?: string }): string {
   return collapsed === '' ? '(whitespace)' : collapsed
 }
 
-/** Counts lines and characters, for the detail bubble. */
+/** Shortens a label to `budget` characters by cutting out the middle rather
+ *  than the tail, so both ends stay readable -- the end of a path or URL is
+ *  usually what tells two entries apart. Counting code points keeps accented
+ *  text and emoji from being split in half. */
+export function middleEllipsis(text: string, budget: number): string {
+  if (budget < 8) return text
+  const chars = [...text]
+  if (chars.length <= budget) return text
+
+  // Leading context is worth more than trailing, hence the 60/40 split.
+  const head = Math.ceil((budget - 1) * 0.6)
+  const tail = budget - 1 - head
+  return chars.slice(0, head).join('') + '…' + (tail > 0 ? chars.slice(-tail).join('') : '')
+}
+
+/** Label for a list row: one line, middle-truncated to the row's budget. */
+export function rowLabel(item: { kind: string; text?: string }, budget: number): string {
+  return middleEllipsis(itemLabel(item), budget)
+}
+
+/** Counts lines and characters, for the detail column. */
 export function textStats(text: string | undefined): string {
   if (!text) return ''
   const chars = [...text].length
