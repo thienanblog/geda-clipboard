@@ -69,7 +69,7 @@ never quarantined:
 ```bash
 git clone https://github.com/thienanblog/geda-clipboard.git
 cd geda-clipboard
-git checkout v0.1.0
+git checkout v0.2.0
 wails build
 ```
 

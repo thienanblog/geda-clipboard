@@ -9,6 +9,8 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-31
+
 ### Added
 
 - Release workflow: pushing a `v*` tag publishes a universal macOS bundle and
@@ -59,5 +61,6 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thienanblog/geda-clipboard/releases/tag/v0.1.0
