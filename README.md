@@ -44,9 +44,27 @@ were working in.
 
 ## Install
 
-There are no prebuilt downloads: releases ship source only, because the
-binaries are unsigned and macOS Gatekeeper would block them without any useful
-explanation. Build from a tagged release, or from `main` for the latest work:
+Every [release](https://github.com/thienanblog/geda-clipboard/releases) has a
+macOS bundle and Windows executables attached. They are unsigned — there is no
+paid developer certificate behind this project — so each system asks once
+before it will run them:
+
+- **macOS** — unzip, move `geda-clipboard.app` to `/Applications`, then clear
+  the quarantine flag. Skip this and Gatekeeper claims the app is damaged,
+  which is what an unsigned download looks like to it:
+
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/geda-clipboard.app
+  ```
+
+- **Windows** — unzip and run `Geda Clipboard.exe`. SmartScreen warns about an
+  unknown publisher: choose **More info › Run anyway**.
+
+Neither app opens a window: look for the icon in the menu bar or the
+notification area.
+
+Building from source avoids both prompts, since a locally built binary is
+never quarantined:
 
 ```bash
 git clone https://github.com/thienanblog/geda-clipboard.git
@@ -218,13 +236,19 @@ The version appears in two files and a test fails if they disagree:
 2. Move the `Unreleased` entries in [CHANGELOG.md](CHANGELOG.md) under the new
    version with today's date, and update the link definitions at the bottom.
 3. Merge to `main` and wait for CI to pass on both platforms.
-4. Tag and publish:
+4. Tag and push. The [release workflow](.github/workflows/release.yml) takes it
+   from there: it refuses a tag that disagrees with `wails.json`, builds a
+   universal macOS bundle and x64/arm64 Windows executables, and publishes them
+   with the changelog section for that version as the release notes.
 
    ```bash
    git tag -a v1.2.3 -m "v1.2.3"
    git push origin v1.2.3
-   gh release create v1.2.3 --title "v1.2.3" --notes-file <(sed -n '/## \[1.2.3\]/,/## \[/p' CHANGELOG.md)
    ```
+
+Running the workflow manually from the Actions tab builds the same archives and
+leaves them as artifacts without publishing anything, which is how to test a
+packaging change without burning a tag.
 
 `appVersion` can also be overridden at build time without editing the source,
 which is useful for nightly builds:

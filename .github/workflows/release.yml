@@ -1,0 +1,183 @@
+name: Release
+
+# Pushing a v* tag publishes a GitHub release with a macOS and two Windows
+# builds attached. Running it by hand builds the same archives and leaves them
+# as workflow artifacts, which is the way to check a packaging change without
+# burning a tag.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.25"
+  NODE_VERSION: "20"
+  WAILS_VERSION: v2.12.0
+
+jobs:
+  # The version lives in wails.json (a test keeps main.go's appVersion in step
+  # with it). Catching a tag that disagrees here costs seconds; catching it
+  # after three platform builds have run costs ten minutes and a deleted tag.
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve and check the version
+        id: version
+        run: |
+          version=$(jq -r .info.productVersion wails.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          # A semver with a hyphen is a pre-release: 0.2.0-rc.1 should not be
+          # offered to everyone as the latest download.
+          case "$version" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match wails.json ($version): expected v$version" >&2
+            exit 1
+          fi
+
+  package:
+    needs: verify
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS (universal)
+            platform: darwin/universal
+            suffix: macos-universal
+          - os: windows-latest
+            name: Windows (x64)
+            platform: windows/amd64
+            suffix: windows-amd64
+          # Cross-compiled from the x64 runner: the Windows layer is pure Go,
+          # so it needs no arm64 host. (The macOS layer is cgo, which is why
+          # that one is built on a Mac.)
+          - os: windows-latest
+            name: Windows (arm64)
+            platform: windows/arm64
+            suffix: windows-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Build
+        run: wails build -clean -platform ${{ matrix.platform }}
+
+      # ditto rather than zip: a .app is a bundle of symlinks and permission
+      # bits that plain zip flattens, which breaks the signature and leaves
+      # macOS refusing to open what it unpacks.
+      - name: Archive the app bundle
+        if: runner.os == 'macOS'
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          ditto -c -k --keepParent \
+            "build/bin/geda-clipboard.app" \
+            "geda-clipboard-$VERSION-${{ matrix.suffix }}.zip"
+
+      - name: Archive the executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          Compress-Archive -Path "build/bin/Geda Clipboard.exe" `
+            -DestinationPath "geda-clipboard-$env:VERSION-${{ matrix.suffix }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: geda-clipboard-${{ matrix.suffix }}
+          path: "*.zip"
+          if-no-files-found: error
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: [verify, package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # The release notes are the changelog section for this version, plus the
+      # first-launch steps: these builds are unsigned, so both operating
+      # systems block them until the user explicitly overrides, and a download
+      # without that explanation looks broken.
+      - name: Assemble the release notes
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          # Stops at the next version heading -- or, for the oldest section,
+          # at the link definitions that close the file.
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { inside = 1; next }
+            /^## \[/ || /^\[[^]]+\]: / { inside = 0 }
+            inside
+          ' CHANGELOG.md > notes.md
+
+          cat >> notes.md <<'EOF'
+
+          ### First launch
+
+          These builds are unsigned, so both systems ask before running them.
+
+          **macOS** — unzip, move `geda-clipboard.app` to `/Applications`, then:
+
+          ```bash
+          xattr -dr com.apple.quarantine /Applications/geda-clipboard.app
+          ```
+
+          Without this, Gatekeeper reports the app as damaged. Geda has no
+          window of its own: look for its icon in the menu bar.
+
+          **Windows** — unzip and run `Geda Clipboard.exe`. SmartScreen shows a
+          warning: choose **More info › Run anyway**. The app lives in the
+          notification area.
+          EOF
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          flags=""
+          if [ "$PRERELEASE" = "true" ]; then
+            flags="--prerelease"
+          fi
+
+          gh release create "$GITHUB_REF_NAME" dist/*.zip \
+            --title "Geda Clipboard $VERSION" \
+            --notes-file notes.md \
+            $flags

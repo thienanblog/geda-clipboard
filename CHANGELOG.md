@@ -9,6 +9,23 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+### Added
+
+- Release workflow: pushing a `v*` tag publishes a universal macOS bundle and
+  x64/arm64 Windows executables, with the changelog section for that version as
+  the release notes. Prebuilt downloads are documented in the README, including
+  the first-launch step each system requires for an unsigned build.
+
+### Changed
+
+- The hover detail card is now a column docked beside the list instead of a
+  card floating over it, which used to cover the very row it described. It
+  follows the keyboard selection when the mouse is away, and hides itself on a
+  popup too narrow to spare the space.
+- History rows shorten long entries in the middle — head, ellipsis, tail —
+  rather than dropping the tail, so the end of a path or URL stays visible. The
+  budget follows the configured popup width.
+
 ## [0.1.0] - 2026-07-31
 
 First release.
