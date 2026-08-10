@@ -25,10 +25,10 @@ changes and the patch version for fixes.
 - The app no longer claims a Dock tile. `LSUIElement` was already set in the
   bundle, but Wails asks for the regular activation policy on launch and put
   the tile back; the policy is now applied from the app itself.
-- Memory is handed back to the operating system once the popup closes and after
-  an image is captured, rather than being kept as a high-water mark. Decoding a
-  full-screen screenshot to build a thumbnail is the app's largest allocation
-  and it is needed for a moment only.
+- Memory is handed back to the operating system after an image is captured,
+  rather than being kept as a high-water mark. Decoding a full-screen
+  screenshot to build a thumbnail is the app's largest allocation and it is
+  needed for a moment only.
 - The detail card no longer takes up room in the popup: it floats out to the
   left of the panel, level with the row under the pointer, and disappears again
   when the pointer leaves the list. Arrow-key navigation shows it too. The

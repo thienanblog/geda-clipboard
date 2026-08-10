@@ -467,12 +467,14 @@ var releasing atomic.Bool
 
 // releaseMemory hands the Go heap's free spans back to the operating system.
 //
-// The app sits idle in the menu bar nearly all the time, but its peak
-// allocations are large and one-off: decoding a full-screen screenshot to build
-// a thumbnail costs tens of megabytes for a moment. The collector reuses that
-// arena happily enough, yet is in no hurry to return it, so a background
-// utility ends up holding a high-water mark it will never need again. Run off
-// the hot path, once the work that allocated it is done.
+// Reserved for capturing an image, which is the one point where this app
+// allocates enough for the difference to show: decoding a full-screen
+// screenshot to build a thumbnail costs tens of megabytes for a moment, and the
+// collector is in no hurry to return that arena, so a background utility ends
+// up holding a high-water mark it will never need again. It is deliberately not
+// called when the popup closes -- that path allocates little, and it closes
+// often enough that a forced stop-the-world collection each time would cost
+// more than the handful of bytes it recovers.
 func releaseMemory() {
 	if !releasing.CompareAndSwap(false, true) {
 		return
@@ -494,9 +496,6 @@ func (a *App) HidePopup() {
 	a.mu.Unlock()
 
 	wruntime.WindowHide(a.ctx)
-
-	// Back to idle: whatever rendering the popup needed is finished with.
-	releaseMemory()
 }
 
 // OnWindowBlur is called by the frontend when the window loses focus. The popup
