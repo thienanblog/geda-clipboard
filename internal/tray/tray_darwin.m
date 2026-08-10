@@ -14,6 +14,29 @@
 static GedaTrayTarget *gTarget = nil;
 static NSStatusItem *gStatusItem = nil;
 
+// AppKit puts the global origin at the bottom-left of the primary display and
+// grows y upwards. Everywhere outside AppKit -- CoreGraphics, the Windows
+// virtual screen, and this application's own Rect -- puts it at the top-left
+// and grows y downwards, so the primary display's height is the pivot for
+// converting between the two.
+static CGFloat gedaPrimaryHeight(void) {
+    NSArray<NSScreen *> *screens = [NSScreen screens];
+    if ([screens count] == 0) {
+        return 0;
+    }
+    return [[screens objectAtIndex:0] frame].size.height;
+}
+
+// gedaWorkArea reports a screen's usable area -- everything but the menu bar
+// and the Dock -- in the global, top-left-origin space.
+static void gedaWorkArea(NSScreen *screen, int *x, int *y, int *w, int *h) {
+    NSRect work = [screen visibleFrame];
+    *x = (int)lround(work.origin.x);
+    *y = (int)lround(gedaPrimaryHeight() - (work.origin.y + work.size.height));
+    *w = (int)lround(work.size.width);
+    *h = (int)lround(work.size.height);
+}
+
 @implementation GedaTrayTarget
 
 - (void)onClick:(id)sender {
@@ -28,11 +51,13 @@ static NSStatusItem *gStatusItem = nil;
     NSRect global = [window convertRectToScreen:[button bounds]];
     NSRect work = [screen visibleFrame];
 
-    // Convert to the space Wails' SetPosition uses: top-left origin, relative to
-    // the screen's visibleFrame.
+    // Convert to a top-left origin relative to the screen's visibleFrame.
     int iconX = (int)lround(global.origin.x - work.origin.x);
     int iconY = (int)lround((work.origin.y + work.size.height) -
                             (global.origin.y + global.size.height));
+
+    int workX = 0, workY = 0, workW = 0, workH = 0;
+    gedaWorkArea(screen, &workX, &workY, &workW, &workH);
 
     NSEventType type = [[NSApp currentEvent] type];
     BOOL isRight = (type == NSEventTypeRightMouseDown) ||
@@ -44,8 +69,7 @@ static NSStatusItem *gStatusItem = nil;
                     iconX, iconY,
                     (int)lround(global.size.width),
                     (int)lround(global.size.height),
-                    (int)lround(work.size.width),
-                    (int)lround(work.size.height));
+                    workX, workY, workW, workH);
 }
 
 @end
@@ -117,6 +141,45 @@ void gedaTrayCreate(const void *iconBytes, int iconLen, const char *tooltip) {
 
 int gedaTrayExists(void) {
     return gStatusItem != nil ? 1 : 0;
+}
+
+int gedaCursorAnchor(int *x, int *y, int *workX, int *workY, int *workW, int *workH) {
+    if (x == NULL || y == NULL || workX == NULL || workY == NULL ||
+        workW == NULL || workH == NULL) {
+        return 0;
+    }
+
+    // +[NSEvent mouseLocation] reads the window server rather than the current
+    // event, so it is safe to call from the goroutine that shows the popup and
+    // it answers even when no event is being dispatched.
+    NSPoint pointer = [NSEvent mouseLocation];
+
+    // The pointer may be on any display, and each has its own origin in the
+    // global space, so find the one it is actually over.
+    NSScreen *screen = nil;
+    for (NSScreen *candidate in [NSScreen screens]) {
+        if (NSMouseInRect(pointer, [candidate frame], NO)) {
+            screen = candidate;
+            break;
+        }
+    }
+    if (screen == nil) {
+        screen = [NSScreen mainScreen];
+    }
+    if (screen == nil) {
+        return 0;
+    }
+
+    NSRect work = [screen visibleFrame];
+
+    // Same conversion as the tray icon: AppKit's bottom-left origin global
+    // space to a top-left origin relative to the screen's visibleFrame. A
+    // pointer up in the menu bar lands above the work area, giving a negative
+    // y that CursorPopupPosition clamps away.
+    *x = (int)lround(pointer.x - work.origin.x);
+    *y = (int)lround((work.origin.y + work.size.height) - pointer.y);
+    gedaWorkArea(screen, workX, workY, workW, workH);
+    return 1;
 }
 
 static void gedaTrayDestroyOnMain(void) {

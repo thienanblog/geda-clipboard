@@ -16,6 +16,8 @@ var (
 	procGetCursorPos          = user32.NewProc("GetCursorPos")
 	procGetSystemMetrics      = user32.NewProc("GetSystemMetrics")
 	procSystemParametersInfoW = user32.NewProc("SystemParametersInfoW")
+	procMonitorFromPoint      = user32.NewProc("MonitorFromPoint")
+	procGetMonitorInfoW       = user32.NewProc("GetMonitorInfoW")
 )
 
 var (
@@ -64,42 +66,89 @@ type rect struct {
 	Left, Top, Right, Bottom int32
 }
 
+type monitorInfo struct {
+	CbSize    uint32
+	RcMonitor rect
+	RcWork    rect
+	DwFlags   uint32
+}
+
+// workAreaAt returns the usable area of the monitor holding p, in virtual
+// screen coordinates. Falling back to SPI_GETWORKAREA gives the primary
+// monitor, which is the best guess available when the monitor cannot be
+// identified.
+func workAreaAt(p point) rect {
+	const (
+		monitorDefaultToNearest = 0x0002
+		smCXScreen              = 0
+		smCYScreen              = 1
+		spiGetWorkArea          = 0x0030
+	)
+
+	// A POINT is two int32s, which the ABI passes by value in a single
+	// register. Convert through uint32 so a monitor left of or above the
+	// primary one -- where the coordinates are negative -- is not sign-extended
+	// into the other half of the word.
+	packed := uintptr(uint32(p.X)) | uintptr(uint32(p.Y))<<32
+	if monitor, _, _ := procMonitorFromPoint.Call(packed, monitorDefaultToNearest); monitor != 0 {
+		info := monitorInfo{CbSize: uint32(unsafe.Sizeof(monitorInfo{}))}
+		if ret, _, _ := procGetMonitorInfoW.Call(monitor, uintptr(unsafe.Pointer(&info))); ret != 0 {
+			return info.RcWork
+		}
+	}
+
+	var work rect
+	if ret, _, _ := procSystemParametersInfoW.Call(
+		spiGetWorkArea, 0, uintptr(unsafe.Pointer(&work)), 0,
+	); ret != 0 {
+		return work
+	}
+
+	// No work area at all: fall back to the full primary screen.
+	w, _, _ := procGetSystemMetrics.Call(smCXScreen)
+	h, _, _ := procGetSystemMetrics.Call(smCYScreen)
+	return rect{0, 0, int32(w), int32(h)}
+}
+
+// cursorAnchor reports the pointer position relative to the work area of the
+// monitor holding it, matching the macOS convention, plus that work area in
+// virtual screen coordinates.
+func cursorAnchor() (Anchor, bool) {
+	var cursor point
+	if ret, _, _ := procGetCursorPos.Call(uintptr(unsafe.Pointer(&cursor))); ret == 0 {
+		return Anchor{}, false
+	}
+
+	work := workAreaAt(cursor)
+
+	return Anchor{
+		Icon: Rect{X: int(cursor.X - work.Left), Y: int(cursor.Y - work.Top)},
+		Work: Rect{
+			X: int(work.Left),
+			Y: int(work.Top),
+			W: int(work.Right - work.Left),
+			H: int(work.Bottom - work.Top),
+		},
+	}, true
+}
+
 // currentAnchor approximates the icon's position using the cursor, which is
 // over the icon at click time. Windows offers no supported way to query a
 // notification icon's rectangle, and the taskbar can sit on any edge, so the
 // work area is used to decide which way the popup should hang.
 func currentAnchor() Anchor {
-	const (
-		smCXScreen        = 0
-		smCYScreen        = 1
-		spiGetWorkArea    = 0x0030
-		assumedIconExtent = 24
-	)
+	const assumedIconExtent = 24
 
-	var cursor point
-	procGetCursorPos.Call(uintptr(unsafe.Pointer(&cursor)))
-
-	var work rect
-	if ret, _, _ := procSystemParametersInfoW.Call(
-		spiGetWorkArea, 0, uintptr(unsafe.Pointer(&work)), 0,
-	); ret == 0 {
-		// Fall back to the full screen if the work area is unavailable.
-		w, _, _ := procGetSystemMetrics.Call(smCXScreen)
-		h, _, _ := procGetSystemMetrics.Call(smCYScreen)
-		work = rect{0, 0, int32(w), int32(h)}
+	a, ok := cursorAnchor()
+	if !ok {
+		// A zero work area is the caller's signal that there is no anchor.
+		return Anchor{}
 	}
 
-	workW := int(work.Right - work.Left)
-	workH := int(work.Bottom - work.Top)
-
-	// Position relative to the work area, matching the macOS convention.
-	iconX := int(cursor.X-work.Left) - assumedIconExtent/2
-	iconY := int(cursor.Y - work.Top)
-
-	// A taskbar at the bottom puts the cursor below the work area, so the popup
-	// should hang upwards; PopupPosition clamps it into range either way.
-	return Anchor{
-		Icon: Rect{X: iconX, Y: iconY, W: assumedIconExtent, H: 0},
-		Work: Rect{W: workW, H: workH},
-	}
+	// Widen the pointer into a notional icon so PopupPosition has something to
+	// centre on. A taskbar at the bottom puts the cursor below the work area,
+	// so the popup should hang upwards; PopupPosition clamps it either way.
+	a.Icon.X -= assumedIconExtent / 2
+	a.Icon.W = assumedIconExtent
+	return a
 }

@@ -19,6 +19,7 @@ import (
 	"geda-clipboard/internal/settings"
 	"geda-clipboard/internal/store"
 	"geda-clipboard/internal/tray"
+	"geda-clipboard/internal/window"
 )
 
 const (
@@ -343,15 +344,77 @@ func (a *App) showPopupAt(anchor tray.Anchor) {
 	wruntime.EventsEmit(a.ctx, "view:changed", string(ViewPopup))
 	wruntime.WindowSetSize(a.ctx, w, h)
 
-	if anchor.Work.W != 0 {
-		x, y := anchor.PopupPosition(w, h)
-		wruntime.WindowSetPosition(a.ctx, x, y)
-	} else {
-		// No anchor yet (hotkey pressed before the tray was ever clicked).
+	place, ok := popupPosition(cfg.PopupPlacement, anchor, w, h)
+	switch {
+	case !ok:
+		// Neither the pointer nor the tray icon could be located.
 		wruntime.WindowCenter(a.ctx)
+	case moveWindow(place.GlobalX, place.GlobalY, w, h):
+		// Placed in global coordinates, so the popup can open on whichever
+		// display the pointer or the icon is on.
+	default:
+		// The window could not be found natively. Wails resolves these
+		// coordinates against the screen the window already occupies, which is
+		// right whenever that is also the screen being aimed at.
+		wruntime.WindowSetPosition(a.ctx, place.RelX, place.RelY)
 	}
 
 	wruntime.WindowShow(a.ctx)
+}
+
+// placement is a resolved popup position, given both ways: relative to the work
+// area of the screen it was computed for, which is what Wails takes, and in the
+// global space spanning every display, which is what moveWindow takes.
+type placement struct {
+	RelX, RelY       int
+	GlobalX, GlobalY int
+}
+
+// Both are variables so the placement logic can be tested without a window
+// server to ask for the pointer or a window to move.
+var (
+	cursorAnchor = tray.CursorAnchor
+	moveWindow   = window.MoveTo
+)
+
+// popupPosition resolves where the popup should open for the given placement
+// mode. Each mode falls back to the other when its own source is unavailable:
+// the tray anchor is unknown until the icon has been clicked once, and the
+// pointer cannot be read on every platform. ok is false only when neither can
+// answer, which leaves the caller to centre the window.
+func popupPosition(mode string, anchor tray.Anchor, w, h int) (placement, bool) {
+	resolve := func(a tray.Anchor, at func(int, int) (int, int)) placement {
+		x, y := at(w, h)
+		globalX, globalY := a.Global(x, y)
+		return placement{RelX: x, RelY: y, GlobalX: globalX, GlobalY: globalY}
+	}
+
+	atCursor := func() (placement, bool) {
+		cursor, ok := cursorAnchor()
+		if !ok {
+			return placement{}, false
+		}
+		return resolve(cursor, cursor.CursorPopupPosition), true
+	}
+
+	atIcon := func() (placement, bool) {
+		if anchor.Work.W == 0 {
+			return placement{}, false
+		}
+		return resolve(anchor, anchor.PopupPosition), true
+	}
+
+	if mode == settings.PlacementCursor {
+		if p, ok := atCursor(); ok {
+			return p, true
+		}
+		return atIcon()
+	}
+
+	if p, ok := atIcon(); ok {
+		return p, true
+	}
+	return atCursor()
 }
 
 // HidePopup hides the window.

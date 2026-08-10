@@ -9,6 +9,33 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+### Added
+
+- **Open the popup at** in Preferences › Window chooses between the mouse
+  pointer and the tray icon. At the pointer the popup opens like a context
+  menu — top-left corner at the cursor, pulled back inside the work area near
+  an edge.
+
+### Changed
+
+- The popup now opens at the mouse pointer by default. It used to always hang
+  under the tray icon, and pressing the shortcut before the icon had ever been
+  clicked centred the window on screen. Existing installations pick the new
+  default up on upgrade; choose "the menu bar icon" to keep the old behaviour.
+
+### Fixed
+
+- Pressing the shortcut before the tray icon has been clicked no longer centres
+  the popup: the two placements now fall back to each other, and the window is
+  only centred when neither the pointer nor the icon can be located.
+- The popup opens on the display the pointer or the tray icon is on, instead of
+  staying on whichever display it was last shown on. Positions are now computed
+  in global coordinates and the window is moved there directly, because Wails'
+  `WindowSetPosition` resolves its arguments against the window's own screen.
+  Verified on macOS; the Windows path is written but untested.
+- Windows reads the work area of the monitor under the pointer rather than the
+  primary monitor's, so the popup is kept on screen against the right edges.
+
 ## [0.2.0] - 2026-07-31
 
 ### Added

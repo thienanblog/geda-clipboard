@@ -42,6 +42,12 @@ const hotkeyLabel = computed(() =>
   capturingHotkey.value ? 'Press keys…' : formatHotkey(cfg.value?.hotkey ?? ''),
 )
 
+/** The icon lives in the menu bar on macOS and the notification area elsewhere,
+ *  and the placement option has to name the one the user can actually see. */
+const iconPlacementLabel = computed(() =>
+  props.env?.platform === 'darwin' ? 'The menu bar icon' : 'The tray icon',
+)
+
 async function load(): Promise<void> {
   cfg.value = await App.GetSettings()
   ignoredText.value = (cfg.value.ignoredApps ?? []).join('\n')
@@ -333,6 +339,17 @@ onUnmounted(() => {
         <section>
           <h2>Window</h2>
           <div class="field">
+            <span class="field-label">Open the popup at</span>
+            <select v-model="cfg.popupPlacement" class="select" @change="save">
+              <option value="cursor">The mouse pointer</option>
+              <option value="menubar">{{ iconPlacementLabel }}</option>
+            </select>
+          </div>
+          <p class="hint">
+            At the pointer the popup opens wherever you are working, like a context menu.
+          </p>
+
+          <div class="field">
             <span class="field-label">Popup size</span>
             <input
               v-model.number="cfg.popupWidth"
@@ -523,6 +540,14 @@ h2 {
   outline: 0;
   user-select: text;
   -webkit-user-select: text;
+}
+
+.select {
+  padding: 4px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--field-bg);
+  outline: 0;
 }
 
 textarea {
