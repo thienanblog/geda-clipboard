@@ -1,7 +1,8 @@
 <script lang="ts" setup>
-/** The detail column: full preview plus provenance for the entry under the
- *  cursor (or, with the mouse away, the selected one). It sits beside the list
- *  rather than floating over it, so the row being inspected stays visible. */
+/** The detail card: full preview plus provenance for the entry under the
+ *  cursor (or, with the mouse away, the selected one). The popup floats it to
+ *  the left of the list, level with the row, so the list itself stays narrow
+ *  and the row being inspected stays visible. */
 import { computed } from 'vue'
 import type { store } from '../../wailsjs/go/models'
 import { formatBytes, formatCopyTime, itemLabel, textStats } from '../lib/format'
@@ -34,7 +35,7 @@ const deleteHint = computed(() => `Press ${combo(sym.alt, sym.del)} to delete.`)
 </script>
 
 <template>
-  <aside class="detail scroll">
+  <aside class="detail">
     <p v-if="!item" class="placeholder">Nothing to preview</p>
 
     <template v-else>
@@ -78,13 +79,9 @@ const deleteHint = computed(() => `Press ${combo(sym.alt, sym.del)} to delete.`)
 </template>
 
 <style scoped>
+/* The card that carries this pane owns the width, background and border. */
 .detail {
-  flex: none;
-  width: 42%;
-  min-width: 190px;
-  max-width: 300px;
-  padding: 9px 12px;
-  border-right: 1px solid var(--hairline);
+  padding: 10px 12px;
 }
 
 .placeholder {

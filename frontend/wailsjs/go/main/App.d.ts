@@ -35,6 +35,8 @@ export function OnWindowBlur():Promise<void>;
 
 export function PasteItem(arg1:string):Promise<void>;
 
+export function PopupGutter():Promise<number>;
+
 export function PopupHeight():Promise<number>;
 
 export function PopupWidth():Promise<number>;

@@ -18,6 +18,12 @@ changes and the patch version for fixes.
 
 ### Changed
 
+- The detail card no longer takes up room in the popup: it floats out to the
+  left of the panel, level with the row under the pointer, and disappears again
+  when the pointer leaves the list. Arrow-key navigation shows it too. The
+  popup itself is now just the list, so the default width drops from 720 to
+  420px; a stored width of 600px or more, which only the old docked column
+  justified, is reset once on upgrade.
 - The popup now opens at the mouse pointer by default. It used to always hang
   under the tray icon, and pressing the shortcut before the icon had ever been
   clicked centred the window on screen. Existing installations pick the new

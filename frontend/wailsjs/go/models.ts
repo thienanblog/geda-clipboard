@@ -40,6 +40,7 @@ export namespace settings {
 	    popupHeight: number;
 	    popupPlacement: string;
 	    previewOnHover: boolean;
+	    layoutVersion: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -61,6 +62,7 @@ export namespace settings {
 	        this.popupHeight = source["popupHeight"];
 	        this.popupPlacement = source["popupPlacement"];
 	        this.previewOnHover = source["previewOnHover"];
+	        this.layoutVersion = source["layoutVersion"];
 	    }
 	}
 

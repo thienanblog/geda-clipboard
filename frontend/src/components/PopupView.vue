@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 /** The menu bar popup: search field, clipboard history list with numeric
- *  accelerators, the detail column and the action footer. */
+ *  accelerators, and the action footer. Details live in a card that flies out
+ *  into the transparent gutter on the left, so the panel itself stays narrow. */
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { store } from '../../wailsjs/go/models'
 import * as App from '../../wailsjs/go/main/App'
@@ -18,31 +19,46 @@ const items = ref<store.Item[]>([])
 const query = ref('')
 const selected = ref(0)
 const searchEl = ref<HTMLInputElement | null>(null)
-const bodyEl = ref<HTMLElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
 const rowEls = ref<HTMLElement[]>([])
+const flyoutEl = ref<HTMLElement | null>(null)
 
 /** Index of the row under the cursor, or -1 when the mouse is away. */
 const hovered = ref(-1)
+/** Set while the user is driving the list from the keyboard, so the card can
+ *  follow the selection with the mouse away. */
+const keyboardNav = ref(false)
 const previewOnHover = ref(true)
 
-/** Live width of the list and of the whole list area, kept by a
- *  ResizeObserver: the popup size is user-configurable, so both the row text
- *  budget and the decision to show the detail column depend on them. */
+/** Live width of the list, kept by a ResizeObserver: the popup size is
+ *  user-configurable, so the row text budget depends on it. */
 const listWidth = ref(0)
-const bodyWidth = ref(0)
+
+/** Width of the transparent strip the window reserves on the left for the
+ *  preview card, straight from the Go side; 0 when previews are off. */
+const gutter = ref(0)
+
+/** Distance from the top of the window to the preview card, in pixels. */
+const flyoutTop = ref(8)
 
 const errorMessage = ref('')
 let errorTimer: number | undefined
 
 const empty = computed(() => items.value.length === 0)
 
-/** The detail column costs ~190-300px, which a narrow popup cannot spare. */
-const showDetail = computed(() => previewOnHover.value && bodyWidth.value >= 480)
+/** Hovering wins; with the mouse away the card follows keyboard selection. */
+const detailIndex = computed(() => (hovered.value >= 0 ? hovered.value : selected.value))
 
-/** Hovering wins; with the mouse away the column follows keyboard selection. */
-const detailItem = computed<store.Item | null>(
-  () => items.value[hovered.value >= 0 ? hovered.value : selected.value] ?? null,
+const detailItem = computed<store.Item | null>(() => items.value[detailIndex.value] ?? null)
+
+/** The card is a hover affordance: it stays out of the way until the user
+ *  points at a row, or starts walking the list with the arrow keys. */
+const showDetail = computed(
+  () =>
+    previewOnHover.value &&
+    gutter.value > 0 &&
+    detailItem.value !== null &&
+    (hovered.value >= 0 || keyboardNav.value),
 )
 
 /** How many characters of a row's label actually fit. The reserved slice
@@ -73,6 +89,10 @@ async function reload(): Promise<void> {
   if (selected.value >= items.value.length) {
     selected.value = Math.max(0, items.value.length - 1)
   }
+  // Rows are only ever assigned into this array, so a shorter list would leave
+  // detached elements behind -- and the preview card, which places itself off
+  // the row's position, would then read a rect of zeroes.
+  rowEls.value.length = items.value.length
 }
 
 async function loadSettings(): Promise<void> {
@@ -81,6 +101,11 @@ async function loadSettings(): Promise<void> {
     previewOnHover.value = cfg.previewOnHover
   } catch {
     /* Defaults are fine if preferences cannot be read. */
+  }
+  try {
+    gutter.value = await App.PopupGutter()
+  } catch {
+    gutter.value = 0
   }
 }
 
@@ -101,9 +126,37 @@ function scrollSelectedIntoView(): void {
   })
 }
 
+/** Lines the preview card up with the row it describes, then keeps it inside
+ *  the window: a row near the bottom would otherwise push the card off screen.
+ *  Runs after the DOM settles, since the card's height depends on the entry. */
+function positionFlyout(): void {
+  nextTick(() => {
+    const row = rowEls.value[detailIndex.value]
+    const card = flyoutEl.value
+    if (!row || !card) return
+    const margin = 8
+    const top = row.getBoundingClientRect().top - 6
+    const lowest = Math.max(margin, window.innerHeight - card.offsetHeight - margin)
+    flyoutTop.value = Math.max(margin, Math.min(top, lowest))
+  })
+}
+
+/** A card holding an image grows once the thumbnail decodes, well after the
+ *  first placement, which would leave it hanging past the bottom of the
+ *  window. Re-placing on its own resize covers that without polling. */
+let cardObserver: ResizeObserver | undefined
+
+watch(flyoutEl, (card) => {
+  cardObserver?.disconnect()
+  if (!card) return
+  cardObserver = new ResizeObserver(() => positionFlyout())
+  cardObserver.observe(card)
+})
+
 function move(delta: number): void {
   if (empty.value) return
   const count = items.value.length
+  keyboardNav.value = true
   selected.value = (selected.value + delta + count) % count
   scrollSelectedIntoView()
 }
@@ -161,6 +214,7 @@ async function clearAll(): Promise<void> {
 
 function onRowEnter(index: number): void {
   selected.value = index
+  keyboardNav.value = false
   if (previewOnHover.value) hovered.value = index
 }
 
@@ -172,9 +226,9 @@ function onListLeave(): void {
   hovered.value = -1
 }
 
-/** Mouse-down on a row must not steal focus from the search field, otherwise
- *  typing stops working after the first click. */
-function onRowMouseDown(event: MouseEvent): void {
+/** Mouse-down anywhere in the popup must not steal focus from the search
+ *  field, otherwise typing stops working after the first click. */
+function keepSearchFocus(event: MouseEvent): void {
   event.preventDefault()
 }
 
@@ -267,11 +321,13 @@ function onKeydown(event: KeyboardEvent): void {
       break
     case 'Home':
       event.preventDefault()
+      keyboardNav.value = true
       selected.value = 0
       scrollSelectedIntoView()
       break
     case 'End':
       event.preventDefault()
+      keyboardNav.value = true
       selected.value = Math.max(0, items.value.length - 1)
       scrollSelectedIntoView()
       break
@@ -294,14 +350,21 @@ function onKeydown(event: KeyboardEvent): void {
 watch(query, () => {
   selected.value = 0
   hovered.value = -1
+  keyboardNav.value = false
   void reload()
+})
+
+// The card is anchored to a row, so it has to be re-placed whenever the entry
+// it describes changes -- watching the item rather than the index also catches
+// a reload swapping the entry out from under the same row.
+watch([detailItem, showDetail], () => {
+  if (showDetail.value) positionFlyout()
 })
 
 let disposers: Array<() => void> = []
 let sizeObserver: ResizeObserver | undefined
 
 function measure(): void {
-  bodyWidth.value = bodyEl.value?.clientWidth ?? 0
   listWidth.value = listEl.value?.clientWidth ?? 0
 }
 
@@ -312,7 +375,6 @@ onMounted(() => {
 
   measure()
   sizeObserver = new ResizeObserver(measure)
-  if (bodyEl.value) sizeObserver.observe(bodyEl.value)
   if (listEl.value) sizeObserver.observe(listEl.value)
 
   window.addEventListener('keydown', onKeydown)
@@ -329,6 +391,7 @@ onMounted(() => {
         query.value = ''
         selected.value = 0
         hovered.value = -1
+        keyboardNav.value = false
         void reload()
         void loadSettings()
         focusSearch()
@@ -341,39 +404,59 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.clearTimeout(errorTimer)
   sizeObserver?.disconnect()
+  cardObserver?.disconnect()
   disposers.forEach((dispose) => dispose())
   disposers = []
 })
 </script>
 
 <template>
-  <div class="panel">
-    <header class="header">
-      <span class="brand">Geda</span>
-      <div class="search">
-        <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true">
-          <path
-            d="M6.5 1a5.5 5.5 0 0 1 4.38 8.84l3.64 3.64a.75.75 0 0 1-1.06 1.06l-3.64-3.64A5.5 5.5 0 1 1 6.5 1Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"
-            fill="currentColor"
+  <div class="stage">
+    <!-- Transparent gutter: nothing is drawn here until a row is pointed at,
+         which is what keeps the panel itself narrow. Clicking it dismisses the
+         popup, the way clicking outside a menu does. -->
+    <div
+      v-if="gutter > 0"
+      class="gutter"
+      :style="{ width: gutter + 'px' }"
+      @mousedown="keepSearchFocus"
+      @click="App.HidePopup()"
+    >
+      <transition name="flyout">
+        <div
+          v-if="showDetail"
+          ref="flyoutEl"
+          class="flyout scroll"
+          :style="{ top: flyoutTop + 'px' }"
+          @click.stop
+        >
+          <DetailPane :item="detailItem" />
+        </div>
+      </transition>
+    </div>
+
+    <div class="panel">
+      <header class="header">
+        <span class="brand">Geda</span>
+        <div class="search">
+          <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M6.5 1a5.5 5.5 0 0 1 4.38 8.84l3.64 3.64a.75.75 0 0 1-1.06 1.06l-3.64-3.64A5.5 5.5 0 1 1 6.5 1Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"
+              fill="currentColor"
+            />
+          </svg>
+          <input
+            ref="searchEl"
+            v-model="query"
+            type="text"
+            placeholder="type to search…"
+            spellcheck="false"
+            autocomplete="off"
           />
-        </svg>
-        <input
-          ref="searchEl"
-          v-model="query"
-          type="text"
-          placeholder="type to search…"
-          spellcheck="false"
-          autocomplete="off"
-        />
-      </div>
-    </header>
+        </div>
+      </header>
 
-    <div class="hairline" />
-
-    <!-- The detail column is docked beside the list, never over it, so the row
-         being inspected stays visible. -->
-    <div ref="bodyEl" class="body">
-      <DetailPane v-if="showDetail" :item="detailItem" />
+      <div class="hairline" />
 
       <div ref="listEl" class="list scroll" @mouseleave="onListLeave">
         <p v-if="empty" class="empty">
@@ -387,7 +470,7 @@ onUnmounted(() => {
           class="row"
           :class="{ 'row-selected': index === selected }"
           type="button"
-          @mousedown="onRowMouseDown"
+          @mousedown="keepSearchFocus"
           @click="activate(index)"
           @mouseenter="onRowEnter(index)"
           @mouseleave="onRowLeave(index)"
@@ -405,35 +488,76 @@ onUnmounted(() => {
           <span class="accel">{{ accelerator(index) }}</span>
         </button>
       </div>
+
+      <div class="hairline" />
+
+      <footer class="footer">
+        <button class="action" type="button" @click="clearAll">
+          <span>Clear all</span>
+          <span class="accel">{{ combo(sym.alt, sym.shift, sym.cmd, sym.del) }}</span>
+        </button>
+        <button class="action" type="button" @click="emit('open-settings', 'general')">
+          <span>Preferences…</span>
+          <span class="accel">{{ combo(sym.cmd, ',') }}</span>
+        </button>
+        <button class="action" type="button" @click="emit('open-settings', 'about')">
+          <span>About</span>
+        </button>
+        <button class="action" type="button" @click="App.Quit()">
+          <span>Quit</span>
+          <span class="accel">{{ combo(sym.cmd, 'Q') }}</span>
+        </button>
+      </footer>
+
+      <transition name="fade">
+        <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+      </transition>
     </div>
-
-    <div class="hairline" />
-
-    <footer class="footer">
-      <button class="action" type="button" @click="clearAll">
-        <span>Clear all</span>
-        <span class="accel">{{ combo(sym.alt, sym.shift, sym.cmd, sym.del) }}</span>
-      </button>
-      <button class="action" type="button" @click="emit('open-settings', 'general')">
-        <span>Preferences…</span>
-        <span class="accel">{{ combo(sym.cmd, ',') }}</span>
-      </button>
-      <button class="action" type="button" @click="emit('open-settings', 'about')">
-        <span>About</span>
-      </button>
-      <button class="action" type="button" @click="App.Quit()">
-        <span>Quit</span>
-        <span class="accel">{{ combo(sym.cmd, 'Q') }}</span>
-      </button>
-    </footer>
-
-    <transition name="fade">
-      <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
-    </transition>
   </div>
 </template>
 
 <style scoped>
+/* The window is wider than the popup looks: the panel sits flush against its
+   right edge, and the strip to the left is transparent until a preview flies
+   out into it. */
+.stage {
+  display: flex;
+  height: 100%;
+}
+
+.gutter {
+  flex: none;
+  position: relative;
+}
+
+.flyout {
+  position: absolute;
+  left: 0;
+  right: 10px;
+  max-height: calc(100% - 16px);
+  background: var(--card-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--panel-shadow);
+}
+
+.flyout-enter-active,
+.flyout-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.flyout-enter-from,
+.flyout-leave-to {
+  opacity: 0;
+  /* Slides out of the panel it belongs to. */
+  transform: translateX(8px);
+}
+
+.panel {
+  flex: 1;
+  min-width: 0;
+}
+
 .header {
   flex: none;
   display: flex;
@@ -482,15 +606,9 @@ onUnmounted(() => {
   color: var(--fg-faint);
 }
 
-.body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-}
-
 .list {
   flex: 1;
-  min-width: 0;
+  min-height: 0;
   padding: 5px 6px;
 }
 

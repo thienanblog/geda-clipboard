@@ -12,3 +12,7 @@ import "C"
 func moveTo(x, y int) bool {
 	return C.gedaMoveWindow(C.int(x), C.int(y)) != 0
 }
+
+func setPanelInset(left, radius int) {
+	C.gedaSetPanelInset(C.int(left), C.int(radius))
+}

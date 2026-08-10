@@ -56,7 +56,9 @@ type Settings struct {
 	// CaptureImages records images as well as text.
 	CaptureImages bool `json:"captureImages"`
 
-	// PopupWidth/PopupHeight size the popup window in logical pixels.
+	// PopupWidth/PopupHeight size the visible popup panel in logical pixels.
+	// The window itself is wider when previews are on: it carries a transparent
+	// gutter for the preview card (see previewGutter in app.go).
 	PopupWidth  int `json:"popupWidth"`
 	PopupHeight int `json:"popupHeight"`
 
@@ -64,10 +66,20 @@ type Settings struct {
 	// PlacementMenuBar.
 	PopupPlacement string `json:"popupPlacement"`
 
-	// PreviewOnHover shows the detail column beside the list, which follows the
-	// entry under the cursor.
+	// PreviewOnHover floats the detail card beside the list for the entry under
+	// the cursor.
 	PreviewOnHover bool `json:"previewOnHover"`
+
+	// LayoutVersion records which popup layout the stored sizes were chosen
+	// for, so a layout change can adjust them once. The app owns it: whatever
+	// arrives from the preferences UI is overwritten on save.
+	LayoutVersion int `json:"layoutVersion"`
 }
+
+// layoutFlyout is the layout in which the detail column moved out of the panel
+// and became a card floating beside it. Widths picked for the docked column are
+// far wider than a list-only panel needs.
+const layoutFlyout = 1
 
 // Defaults returns the settings a fresh install starts with.
 func Defaults() Settings {
@@ -82,10 +94,23 @@ func Defaults() Settings {
 		IgnoreConcealed: true,
 		IgnoreTransient: true,
 		CaptureImages:   true,
-		PopupWidth:      720,
+		PopupWidth:      420,
 		PopupHeight:     520,
 		PopupPlacement:  PlacementCursor,
 		PreviewOnHover:  true,
+		LayoutVersion:   layoutFlyout,
+	}
+}
+
+// migrate brings a stored configuration up to the current layout. It runs once:
+// normalise stamps the current layout onto everything that is saved afterwards,
+// so a width the user picks under the new layout is never touched again.
+func (s *Settings) migrate() {
+	if s.LayoutVersion < layoutFlyout {
+		// Only the docked detail column ever justified a popup this wide.
+		if s.PopupWidth >= 600 {
+			s.PopupWidth = Defaults().PopupWidth
+		}
 	}
 }
 
@@ -104,7 +129,7 @@ func (s *Settings) normalise() {
 	// Bounds match the min/max the preferences UI advertises. The upper ones
 	// matter: a number field does not enforce max for a typed value, and a
 	// popup larger than the screen cannot be dismissed from its own footer.
-	if s.PopupWidth < 360 {
+	if s.PopupWidth < 300 {
 		s.PopupWidth = d.PopupWidth
 	}
 	if s.PopupWidth > 1600 {
@@ -127,6 +152,9 @@ func (s *Settings) normalise() {
 	if s.IgnoredApps == nil {
 		s.IgnoredApps = []string{}
 	}
+	// Stamped rather than trusted: the layout a configuration was written for
+	// is the app's own bookkeeping, not a preference.
+	s.LayoutVersion = layoutFlyout
 }
 
 // Manager loads, serves and saves the settings.
@@ -165,10 +193,14 @@ func Load() (*Manager, error) {
 	// Unmarshal over the defaults so keys absent from an older file keep their
 	// default rather than becoming zero.
 	loaded := Defaults()
+	// A file predating the field has to read back as version 0, which the
+	// default would otherwise hide.
+	loaded.LayoutVersion = 0
 	if err := json.Unmarshal(raw, &loaded); err != nil {
 		// Corrupt file: keep defaults rather than refusing to start.
 		return m, nil
 	}
+	loaded.migrate()
 	loaded.normalise()
 	m.current = loaded
 	return m, nil
