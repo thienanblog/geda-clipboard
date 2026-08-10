@@ -141,6 +141,18 @@ function positionFlyout(): void {
   })
 }
 
+/** A card holding an image grows once the thumbnail decodes, well after the
+ *  first placement, which would leave it hanging past the bottom of the
+ *  window. Re-placing on its own resize covers that without polling. */
+let cardObserver: ResizeObserver | undefined
+
+watch(flyoutEl, (card) => {
+  cardObserver?.disconnect()
+  if (!card) return
+  cardObserver = new ResizeObserver(() => positionFlyout())
+  cardObserver.observe(card)
+})
+
 function move(delta: number): void {
   if (empty.value) return
   const count = items.value.length
@@ -214,9 +226,9 @@ function onListLeave(): void {
   hovered.value = -1
 }
 
-/** Mouse-down on a row must not steal focus from the search field, otherwise
- *  typing stops working after the first click. */
-function onRowMouseDown(event: MouseEvent): void {
+/** Mouse-down anywhere in the popup must not steal focus from the search
+ *  field, otherwise typing stops working after the first click. */
+function keepSearchFocus(event: MouseEvent): void {
   event.preventDefault()
 }
 
@@ -342,10 +354,10 @@ watch(query, () => {
   void reload()
 })
 
-// The card is anchored to a row, so it has to be re-placed whenever the row it
-// describes changes -- and once more when it first appears, since its height is
-// only known after it renders.
-watch([detailIndex, showDetail], () => {
+// The card is anchored to a row, so it has to be re-placed whenever the entry
+// it describes changes -- watching the item rather than the index also catches
+// a reload swapping the entry out from under the same row.
+watch([detailItem, showDetail], () => {
   if (showDetail.value) positionFlyout()
 })
 
@@ -392,6 +404,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.clearTimeout(errorTimer)
   sizeObserver?.disconnect()
+  cardObserver?.disconnect()
   disposers.forEach((dispose) => dispose())
   disposers = []
 })
@@ -406,7 +419,7 @@ onUnmounted(() => {
       v-if="gutter > 0"
       class="gutter"
       :style="{ width: gutter + 'px' }"
-      @mousedown="onRowMouseDown"
+      @mousedown="keepSearchFocus"
       @click="App.HidePopup()"
     >
       <transition name="flyout">
@@ -415,6 +428,7 @@ onUnmounted(() => {
           ref="flyoutEl"
           class="flyout scroll"
           :style="{ top: flyoutTop + 'px' }"
+          @click.stop
         >
           <DetailPane :item="detailItem" />
         </div>
@@ -456,7 +470,7 @@ onUnmounted(() => {
           class="row"
           :class="{ 'row-selected': index === selected }"
           type="button"
-          @mousedown="onRowMouseDown"
+          @mousedown="keepSearchFocus"
           @click="activate(index)"
           @mouseenter="onRowEnter(index)"
           @mouseleave="onRowLeave(index)"
