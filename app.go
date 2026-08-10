@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -143,6 +145,8 @@ func (a *App) OnStartup(ctx context.Context) {
 
 	a.settings.OnChange(a.onSettingsChanged)
 
+	window.SetDockIconVisible(cfg.ShowDockIcon)
+
 	notify.RequestPermission()
 }
 
@@ -176,6 +180,8 @@ func (a *App) onSettingsChanged(cfg settings.Settings) {
 	if err := autostart.Set(cfg.LaunchAtLogin); err != nil {
 		log.Println("autostart:", err)
 	}
+
+	window.SetDockIconVisible(cfg.ShowDockIcon)
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +229,8 @@ func (a *App) onClipboardChange(snap clipboard.Snapshot, source clipboard.App) {
 		capture.Thumb = thumb
 		capture.ImageW = w
 		capture.ImageH = h
+		// The decode above is the app's single largest allocation.
+		defer releaseMemory()
 	default:
 		return
 	}
@@ -451,6 +459,30 @@ func popupPosition(mode string, anchor tray.Anchor, w, h, gutter int) (placement
 		return p, true
 	}
 	return atCursor()
+}
+
+// releasing keeps at most one release in flight, so a burst of copies cannot
+// queue up a collection per item.
+var releasing atomic.Bool
+
+// releaseMemory hands the Go heap's free spans back to the operating system.
+//
+// Reserved for capturing an image, which is the one point where this app
+// allocates enough for the difference to show: decoding a full-screen
+// screenshot to build a thumbnail costs tens of megabytes for a moment, and the
+// collector is in no hurry to return that arena, so a background utility ends
+// up holding a high-water mark it will never need again. It is deliberately not
+// called when the popup closes -- that path allocates little, and it closes
+// often enough that a forced stop-the-world collection each time would cost
+// more than the handful of bytes it recovers.
+func releaseMemory() {
+	if !releasing.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer releasing.Store(false)
+		debug.FreeOSMemory()
+	}()
 }
 
 // HidePopup hides the window.

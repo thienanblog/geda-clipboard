@@ -11,6 +11,10 @@ changes and the patch version for fixes.
 
 ### Added
 
+- **Show icon in the Dock** in Preferences › General keeps or drops the macOS
+  Dock tile, and takes effect immediately rather than on the next launch. It is
+  off by default: the app is reached from the menu bar and the shortcut, so the
+  tile only cost a slot. The popup still takes keyboard focus without it.
 - **Open the popup at** in Preferences › Window chooses between the mouse
   pointer and the tray icon. At the pointer the popup opens like a context
   menu — top-left corner at the cursor, pulled back inside the work area near
@@ -18,6 +22,13 @@ changes and the patch version for fixes.
 
 ### Changed
 
+- The app no longer claims a Dock tile. `LSUIElement` was already set in the
+  bundle, but Wails asks for the regular activation policy on launch and put
+  the tile back; the policy is now applied from the app itself.
+- Memory is handed back to the operating system after an image is captured,
+  rather than being kept as a high-water mark. Decoding a full-screen
+  screenshot to build a thumbnail is the app's largest allocation and it is
+  needed for a moment only.
 - The detail card no longer takes up room in the popup: it floats out to the
   left of the panel, level with the row under the pointer, and disappears again
   when the pointer leaves the list. Arrow-key navigation shows it too. The

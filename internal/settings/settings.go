@@ -44,6 +44,11 @@ type Settings struct {
 	// LaunchAtLogin registers the app as a login item.
 	LaunchAtLogin bool `json:"launchAtLogin"`
 
+	// ShowDockIcon keeps the app's tile in the macOS Dock. Off by default: the
+	// popup is reached from the menu bar and the shortcut, so the tile only
+	// takes up a slot. Ignored on platforms without a Dock.
+	ShowDockIcon bool `json:"showDockIcon"`
+
 	// IgnoredApps lists application names whose copies are not recorded.
 	IgnoredApps []string `json:"ignoredApps"`
 
@@ -90,6 +95,7 @@ func Defaults() Settings {
 		PasteOnSelect:   true,
 		Hotkey:          defaultHotkey,
 		LaunchAtLogin:   false,
+		ShowDockIcon:    false,
 		IgnoredApps:     []string{},
 		IgnoreConcealed: true,
 		IgnoreTransient: true,

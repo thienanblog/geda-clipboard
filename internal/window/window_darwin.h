@@ -10,4 +10,8 @@ int gedaMoveWindow(int x, int y);
 // corners.
 void gedaSetPanelInset(int left, int radius);
 
+// Shows or hides the Dock tile by switching the process between the regular
+// and accessory activation policies.
+void gedaSetDockIconVisible(int visible);
+
 #endif
