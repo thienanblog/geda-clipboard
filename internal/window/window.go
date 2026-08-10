@@ -8,8 +8,12 @@
 // simply moves it to (0, 0) of its own.
 package window
 
-// MoveTo places the window's top-left corner at the given global position and
-// sizes it to w by h, in logical pixels. It reports false when the platform
-// cannot locate the window, which is the caller's cue to fall back to the
-// framework's screen-relative positioning.
-func MoveTo(x, y, w, h int) bool { return moveTo(x, y, w, h) }
+// MoveTo places the window's top-left corner at the given global position. It
+// reports false when the platform cannot locate the window, which is the
+// caller's cue to fall back to the framework's screen-relative positioning.
+//
+// The window is moved, never resized. Its size is the framework's business:
+// Wails scales a logical size by the display's DPI on Windows, so a size
+// passed through here in logical pixels would be applied as physical ones and
+// shrink the window on any scaled display.
+func MoveTo(x, y int) bool { return moveTo(x, y) }

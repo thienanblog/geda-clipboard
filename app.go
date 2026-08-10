@@ -349,7 +349,7 @@ func (a *App) showPopupAt(anchor tray.Anchor) {
 	case !ok:
 		// Neither the pointer nor the tray icon could be located.
 		wruntime.WindowCenter(a.ctx)
-	case moveWindow(place.GlobalX, place.GlobalY, w, h):
+	case moveWindow(place.GlobalX, place.GlobalY):
 		// Placed in global coordinates, so the popup can open on whichever
 		// display the pointer or the icon is on.
 	default:

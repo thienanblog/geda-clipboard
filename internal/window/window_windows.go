@@ -80,7 +80,7 @@ func mainWindow() uintptr {
 	return cached
 }
 
-func moveTo(x, y, w, h int) bool {
+func moveTo(x, y int) bool {
 	hwnd := mainWindow()
 	if hwnd == 0 {
 		return false
@@ -88,21 +88,23 @@ func moveTo(x, y, w, h int) bool {
 
 	const (
 		hwndTop       = 0
+		swpNoSize     = 0x0001
 		swpNoZOrder   = 0x0004
 		swpNoActivate = 0x0010
 	)
 
 	// A monitor left of or above the primary one has negative virtual screen
 	// coordinates; the conversion keeps them intact in the low 32 bits, which
-	// is where SetWindowPos reads its int arguments from.
+	// is where SetWindowPos reads its int arguments from. The size arguments
+	// are ignored under SWP_NOSIZE.
 	ret, _, _ := procSetWindowPos.Call(
 		hwnd,
 		hwndTop,
 		uintptr(uint32(int32(x))),
 		uintptr(uint32(int32(y))),
-		uintptr(uint32(int32(w))),
-		uintptr(uint32(int32(h))),
-		swpNoZOrder|swpNoActivate,
+		0,
+		0,
+		swpNoSize|swpNoZOrder|swpNoActivate,
 	)
 	return ret != 0
 }

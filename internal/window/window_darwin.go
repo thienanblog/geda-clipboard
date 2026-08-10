@@ -9,6 +9,6 @@ package window
 */
 import "C"
 
-func moveTo(x, y, w, h int) bool {
-	return C.gedaMoveWindow(C.int(x), C.int(y), C.int(w), C.int(h)) != 0
+func moveTo(x, y int) bool {
+	return C.gedaMoveWindow(C.int(x), C.int(y)) != 0
 }

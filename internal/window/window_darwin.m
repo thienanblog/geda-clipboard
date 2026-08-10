@@ -16,7 +16,7 @@ static NSWindow *gedaMainWindow(void) {
     return nil;
 }
 
-static int gedaMoveWindowOnMain(int x, int y, int w, int h) {
+static int gedaMoveWindowOnMain(int x, int y) {
     NSWindow *window = gedaMainWindow();
     NSArray<NSScreen *> *screens = [NSScreen screens];
     if (window == nil || [screens count] == 0) {
@@ -24,19 +24,19 @@ static int gedaMoveWindowOnMain(int x, int y, int w, int h) {
     }
 
     // Back from the global top-left origin space into AppKit's bottom-left one,
-    // pivoting on the primary display's height. setFrame: takes the frame
-    // rather than the content rect, which for this frameless window are the
-    // same thing, and matches how Wails itself sizes the window.
+    // pivoting on the primary display's height. The flip needs the window's
+    // height, which is read from the window rather than taken as an argument so
+    // that it is the height the framework actually applied.
     CGFloat primaryHeight = [[screens objectAtIndex:0] frame].size.height;
-    NSRect frame = NSMakeRect(x, primaryHeight - y - h, w, h);
+    CGFloat windowHeight = [window frame].size.height;
 
-    [window setFrame:frame display:YES animate:NO];
+    [window setFrameOrigin:NSMakePoint(x, primaryHeight - y - windowHeight)];
     return 1;
 }
 
-int gedaMoveWindow(int x, int y, int w, int h) {
+int gedaMoveWindow(int x, int y) {
     if ([NSThread isMainThread]) {
-        return gedaMoveWindowOnMain(x, y, w, h);
+        return gedaMoveWindowOnMain(x, y);
     }
 
     // The popup is shown from a goroutine -- the hotkey handler or the tray
@@ -45,7 +45,7 @@ int gedaMoveWindow(int x, int y, int w, int h) {
     // running the AppKit event loop and never waits on this one.
     __block int moved = 0;
     dispatch_sync(dispatch_get_main_queue(), ^{
-        moved = gedaMoveWindowOnMain(x, y, w, h);
+        moved = gedaMoveWindowOnMain(x, y);
     });
     return moved;
 }
