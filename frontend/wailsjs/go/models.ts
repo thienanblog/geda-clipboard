@@ -38,6 +38,7 @@ export namespace settings {
 	    captureImages: boolean;
 	    popupWidth: number;
 	    popupHeight: number;
+	    popupPlacement: string;
 	    previewOnHover: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -58,6 +59,7 @@ export namespace settings {
 	        this.captureImages = source["captureImages"];
 	        this.popupWidth = source["popupWidth"];
 	        this.popupHeight = source["popupHeight"];
+	        this.popupPlacement = source["popupPlacement"];
 	        this.previewOnHover = source["previewOnHover"];
 	    }
 	}

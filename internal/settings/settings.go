@@ -12,6 +12,16 @@ import (
 	"geda-clipboard/internal/appdir"
 )
 
+// Placement values for Settings.PopupPlacement.
+const (
+	// PlacementCursor opens the popup at the mouse pointer, the way a context
+	// menu does. This is the default: the pointer is where the user is already
+	// looking when they press the shortcut.
+	PlacementCursor = "cursor"
+	// PlacementMenuBar hangs the popup under the menu bar / tray icon.
+	PlacementMenuBar = "menubar"
+)
+
 // Settings mirrors the preferences surface exposed in the UI. Field names are
 // lowerCamelCase in JSON so the frontend can use them directly.
 type Settings struct {
@@ -50,6 +60,10 @@ type Settings struct {
 	PopupWidth  int `json:"popupWidth"`
 	PopupHeight int `json:"popupHeight"`
 
+	// PopupPlacement decides where the popup opens: PlacementCursor or
+	// PlacementMenuBar.
+	PopupPlacement string `json:"popupPlacement"`
+
 	// PreviewOnHover shows the detail column beside the list, which follows the
 	// entry under the cursor.
 	PreviewOnHover bool `json:"previewOnHover"`
@@ -70,6 +84,7 @@ func Defaults() Settings {
 		CaptureImages:   true,
 		PopupWidth:      720,
 		PopupHeight:     520,
+		PopupPlacement:  PlacementCursor,
 		PreviewOnHover:  true,
 	}
 }
@@ -100,6 +115,14 @@ func (s *Settings) normalise() {
 	}
 	if s.PopupHeight > 1200 {
 		s.PopupHeight = 1200
+	}
+	// An unknown placement -- a hand-edited file, or one written by a build that
+	// knew a mode this one does not -- falls back to the default rather than
+	// leaving the popup with nowhere to go.
+	switch s.PopupPlacement {
+	case PlacementCursor, PlacementMenuBar:
+	default:
+		s.PopupPlacement = d.PopupPlacement
 	}
 	if s.IgnoredApps == nil {
 		s.IgnoredApps = []string{}

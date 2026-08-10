@@ -10,12 +10,22 @@ type Rect struct {
 }
 
 // Anchor describes where the tray icon is on screen. Icon is the rect of the
-// icon itself and Work is the usable area of the same screen -- on macOS that
-// excludes the menu bar, on Windows the taskbar. Both share the same origin, so
-// placing a window at Icon.X, 0 puts it flush under the menu bar.
+// icon itself, expressed relative to Work, so placing a window at Icon.X, 0
+// puts it flush under the menu bar. Work is the usable area of the same screen
+// -- on macOS that excludes the menu bar, on Windows the taskbar -- and its own
+// X and Y locate that screen in the global space (see Global).
 type Anchor struct {
 	Icon Rect
 	Work Rect
+}
+
+// Global converts a position relative to the anchor's work area into the
+// global coordinate space: top-left origin at the top-left of the primary
+// display, spanning every display. That is the space a window has to be placed
+// in for the popup to be able to open on a screen other than the one the
+// window is currently sitting on.
+func (a Anchor) Global(x, y int) (int, int) {
+	return a.Work.X + x, a.Work.Y + y
 }
 
 // Handler receives tray interactions.
@@ -48,6 +58,39 @@ func fireRight(a Anchor) {
 	if handler != nil {
 		handler.OnRightClick(a)
 	}
+}
+
+// CursorAnchor reports where the mouse pointer is, in the same coordinate space
+// as Anchor: top-left origin, relative to the work area of the screen holding
+// the pointer. Icon is a zero-sized rect at the pointer itself, so the result
+// can be fed straight to CursorPopupPosition. ok is false when the platform
+// cannot answer, which is the caller's cue to fall back to the tray anchor.
+func CursorAnchor() (Anchor, bool) { return cursorAnchor() }
+
+// CursorPopupPosition returns the top-left position for a popup of the given
+// size opened at the pointer, the way a context menu behaves: the popup hangs
+// down and to the right of the cursor, and is pulled back inside the work area
+// when the cursor is close to an edge. Call it on an Anchor from CursorAnchor.
+func (a Anchor) CursorPopupPosition(w, h int) (int, int) {
+	const margin = 8
+
+	x, y := a.Icon.X, a.Icon.Y
+
+	// Order matters: when the popup is larger than the work area the first
+	// clamp produces a value left of the margin, and the second pulls it back.
+	if maxX := a.Work.W - w - margin; x > maxX {
+		x = maxX
+	}
+	if x < margin {
+		x = margin
+	}
+	if maxY := a.Work.H - h - margin; y > maxY {
+		y = maxY
+	}
+	if y < margin {
+		y = margin
+	}
+	return x, y
 }
 
 // PopupPosition returns the top-left position, in the coordinate space Wails'

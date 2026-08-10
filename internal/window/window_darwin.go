@@ -1,0 +1,14 @@
+//go:build darwin
+
+package window
+
+/*
+#cgo CFLAGS: -x objective-c
+#cgo LDFLAGS: -framework Cocoa
+#include "window_darwin.h"
+*/
+import "C"
+
+func moveTo(x, y int) bool {
+	return C.gedaMoveWindow(C.int(x), C.int(y)) != 0
+}

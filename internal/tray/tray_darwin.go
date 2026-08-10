@@ -19,6 +19,17 @@ import (
 // asynchronous, so this may briefly report false right after Start.
 func Exists() bool { return C.gedaTrayExists() != 0 }
 
+func cursorAnchor() (Anchor, bool) {
+	var x, y, workX, workY, workW, workH C.int
+	if C.gedaCursorAnchor(&x, &y, &workX, &workY, &workW, &workH) == 0 {
+		return Anchor{}, false
+	}
+	return Anchor{
+		Icon: Rect{X: int(x), Y: int(y)},
+		Work: Rect{X: int(workX), Y: int(workY), W: int(workW), H: int(workH)},
+	}, true
+}
+
 //export gedaTrayCreateResult
 func gedaTrayCreateResult(ok, hasIcon C.int) {
 	if ok == 0 {
@@ -51,10 +62,10 @@ func stop() {
 }
 
 //export gedaTrayClicked
-func gedaTrayClicked(isRight, iconX, iconY, iconW, iconH, workW, workH C.int) {
+func gedaTrayClicked(isRight, iconX, iconY, iconW, iconH, workX, workY, workW, workH C.int) {
 	a := Anchor{
 		Icon: Rect{X: int(iconX), Y: int(iconY), W: int(iconW), H: int(iconH)},
-		Work: Rect{W: int(workW), H: int(workH)},
+		Work: Rect{X: int(workX), Y: int(workY), W: int(workW), H: int(workH)},
 	}
 	// Hand off to a goroutine: this runs on the AppKit main thread and the
 	// handler will want to drive Wails, which must not block the event.

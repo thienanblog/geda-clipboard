@@ -90,3 +90,31 @@ func TestIsIgnoredIsCaseInsensitive(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalisePopupPlacement(t *testing.T) {
+	d := Defaults()
+
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "cursor is kept", in: PlacementCursor, want: PlacementCursor},
+		{name: "menu bar is kept", in: PlacementMenuBar, want: PlacementMenuBar},
+		// A settings file written before the preference existed unmarshals over
+		// the defaults, so this only happens for a hand-edited or truncated one.
+		{name: "empty falls back", in: "", want: d.PopupPlacement},
+		{name: "unknown falls back", in: "somewhere-else", want: d.PopupPlacement},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Settings{PopupPlacement: tc.in}
+			got.normalise()
+
+			if got.PopupPlacement != tc.want {
+				t.Errorf("PopupPlacement = %q, want %q", got.PopupPlacement, tc.want)
+			}
+		})
+	}
+}

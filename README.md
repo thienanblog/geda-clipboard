@@ -11,8 +11,9 @@ were working in.
 
 ## Features
 
-- **Menu bar popup** anchored under the tray icon, with search, keyboard
-  navigation and `⌘1`–`⌘9` accelerators.
+- **Popup at the mouse pointer** — where you are already looking when you press
+  the shortcut — with search, keyboard navigation and `⌘1`–`⌘9` accelerators.
+  Preferences can anchor it under the tray icon instead.
 - **Notifications on copy and paste**, showing the source app and a preview.
   Each can be toggled independently.
 - **Text and image history** with thumbnails; images are stored as separate blob
@@ -179,7 +180,10 @@ main.go                    Wails setup: frameless, always-on-top, starts hidden
 app.go                     Bound API, orchestration, capture and paste flow
 internal/
   tray/                    Menu bar item. macOS: native NSStatusItem via cgo.
-                           Windows: energye/systray.
+                           Windows: energye/systray. Also reports the pointer
+                           and the work area around it, for popup placement.
+  window/                  Moves the app's own window in global, all-display
+                           coordinates, which Wails cannot do
   clipboard/               Change-counter polling, read/write, source-app
                            detection, paste keystroke synthesis
   store/                   History: dedupe, copy counting, pinning, eviction,
@@ -192,7 +196,7 @@ internal/
 frontend/                  Vue 3 + TypeScript
 ```
 
-### Two design decisions worth knowing
+### Three design decisions worth knowing
 
 **The macOS tray is hand-written rather than using a systray library.** The usual
 choice, `energye/systray`, calls `[[NSApplication sharedApplication]
@@ -200,6 +204,15 @@ setDelegate:]`, which takes over the delegate Wails relies on for window and
 lifecycle handling. It also offers no way to query the icon's screen rectangle,
 which the popup needs in order to hang underneath it. A native `NSStatusItem`
 avoids both problems. Windows has neither issue, so it uses the library.
+
+**The popup is positioned by moving the window directly, not through Wails.**
+`WindowSetPosition` takes coordinates relative to the screen the window already
+occupies, so asking it for the top-left of another display just moves the window
+to the top-left of its own. `internal/window` finds the framework's window --
+by AppKit class on macOS, by window class and process id on Windows -- and sets
+its frame in the global space spanning every display. Every position is computed
+both ways, so a failed lookup falls back to the Wails call, which is correct
+whenever the target is the window's current screen.
 
 **Change detection uses the OS clipboard change counter, not content diffing.**
 Copying the same text twice does not change the content but is still two copies,
@@ -220,8 +233,10 @@ goroutine that races `[NSApp run]`.
   host, but nobody has used it on a Windows desktop. The `INPUT` struct
   SendInput depends on is pinned by compile-time size and
   offset assertions, since getting it wrong fails silently at runtime.
-- **Multi-monitor popup placement** follows the screen the window is currently
-  on, which can differ from the screen holding the tray icon.
+- **Multi-monitor popup placement is unverified on Windows.** The popup is
+  positioned in global coordinates and the window is moved there directly, so
+  it should follow the pointer onto any display; only the macOS path has been
+  tested against a second screen.
 
 ## Cutting a release
 
