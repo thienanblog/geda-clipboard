@@ -26,3 +26,11 @@ func MoveTo(x, y int) bool { return moveTo(x, y) }
 // this the gutter shows up as a grey slab exactly where the popup is meant to
 // be see-through. Platforms that have no window-wide material do nothing.
 func SetPanelInset(left, radius int) { setPanelInset(left, radius) }
+
+// SetDockIconVisible shows or hides the app's entry in the Dock.
+//
+// A menu bar app is reached through its tray icon and its shortcut, so the Dock
+// tile only costs a slot. Hiding it is a live switch rather than a relaunch,
+// and it does not stop the popup taking keyboard focus. Platforms without a
+// Dock do nothing.
+func SetDockIconVisible(visible bool) { setDockIconVisible(visible) }

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -143,6 +145,8 @@ func (a *App) OnStartup(ctx context.Context) {
 
 	a.settings.OnChange(a.onSettingsChanged)
 
+	window.SetDockIconVisible(cfg.ShowDockIcon)
+
 	notify.RequestPermission()
 }
 
@@ -176,6 +180,8 @@ func (a *App) onSettingsChanged(cfg settings.Settings) {
 	if err := autostart.Set(cfg.LaunchAtLogin); err != nil {
 		log.Println("autostart:", err)
 	}
+
+	window.SetDockIconVisible(cfg.ShowDockIcon)
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +229,8 @@ func (a *App) onClipboardChange(snap clipboard.Snapshot, source clipboard.App) {
 		capture.Thumb = thumb
 		capture.ImageW = w
 		capture.ImageH = h
+		// The decode above is the app's single largest allocation.
+		defer releaseMemory()
 	default:
 		return
 	}
@@ -453,6 +461,28 @@ func popupPosition(mode string, anchor tray.Anchor, w, h, gutter int) (placement
 	return atCursor()
 }
 
+// releasing keeps at most one release in flight, so a burst of copies cannot
+// queue up a collection per item.
+var releasing atomic.Bool
+
+// releaseMemory hands the Go heap's free spans back to the operating system.
+//
+// The app sits idle in the menu bar nearly all the time, but its peak
+// allocations are large and one-off: decoding a full-screen screenshot to build
+// a thumbnail costs tens of megabytes for a moment. The collector reuses that
+// arena happily enough, yet is in no hurry to return it, so a background
+// utility ends up holding a high-water mark it will never need again. Run off
+// the hot path, once the work that allocated it is done.
+func releaseMemory() {
+	if !releasing.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer releasing.Store(false)
+		debug.FreeOSMemory()
+	}()
+}
+
 // HidePopup hides the window.
 func (a *App) HidePopup() {
 	if a.ctx == nil {
@@ -464,6 +494,9 @@ func (a *App) HidePopup() {
 	a.mu.Unlock()
 
 	wruntime.WindowHide(a.ctx)
+
+	// Back to idle: whatever rendering the popup needed is finished with.
+	releaseMemory()
 }
 
 // OnWindowBlur is called by the frontend when the window loses focus. The popup

@@ -32,6 +32,7 @@ export namespace settings {
 	    pasteOnSelect: boolean;
 	    hotkey: string;
 	    launchAtLogin: boolean;
+	    showDockIcon: boolean;
 	    ignoredApps: string[];
 	    ignoreConcealed: boolean;
 	    ignoreTransient: boolean;
@@ -54,6 +55,7 @@ export namespace settings {
 	        this.pasteOnSelect = source["pasteOnSelect"];
 	        this.hotkey = source["hotkey"];
 	        this.launchAtLogin = source["launchAtLogin"];
+	        this.showDockIcon = source["showDockIcon"];
 	        this.ignoredApps = source["ignoredApps"];
 	        this.ignoreConcealed = source["ignoreConcealed"];
 	        this.ignoreTransient = source["ignoreTransient"];

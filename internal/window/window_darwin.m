@@ -94,3 +94,23 @@ void gedaSetPanelInset(int left, int radius) {
         gedaSetPanelInsetOnMain(left, radius);
     });
 }
+
+// A menu bar app has no business owning a Dock tile, but LSUIElement alone does
+// not settle it: Wails unconditionally asks for the regular policy in
+// applicationWillFinishLaunching, which puts the tile back. The accessory policy
+// is the one that keeps a window able to take focus -- unlike the prohibited
+// policy -- so the popup still accepts keystrokes with no tile.
+void gedaSetDockIconVisible(int visible) {
+    // Deliberately async even when called from the main thread. Blocks on the
+    // main queue run from the event loop, which starts after
+    // applicationWillFinishLaunching, so this lands after Wails' own call
+    // rather than racing it from the goroutine OnStartup runs on.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSApplicationActivationPolicy wanted = visible
+            ? NSApplicationActivationPolicyRegular
+            : NSApplicationActivationPolicyAccessory;
+        if ([NSApp activationPolicy] != wanted) {
+            [NSApp setActivationPolicy:wanted];
+        }
+    });
+}

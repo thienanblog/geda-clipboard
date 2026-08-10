@@ -48,6 +48,9 @@ const iconPlacementLabel = computed(() =>
   props.env?.platform === 'darwin' ? 'The menu bar icon' : 'The tray icon',
 )
 
+/** Only macOS has a Dock, so the option to leave it alone is hidden elsewhere. */
+const isMac = computed(() => props.env?.platform === 'darwin')
+
 async function load(): Promise<void> {
   cfg.value = await App.GetSettings()
   ignoredText.value = (cfg.value.ignoredApps ?? []).join('\n')
@@ -265,6 +268,13 @@ onUnmounted(() => {
           <label class="check">
             <input v-model="cfg.launchAtLogin" type="checkbox" @change="save" />
             <span>Launch at login</span>
+          </label>
+          <label v-if="isMac" class="check">
+            <input v-model="cfg.showDockIcon" type="checkbox" @change="save" />
+            <span>
+              Show icon in the Dock
+              <em>Off keeps it to the menu bar; the shortcut still works.</em>
+            </span>
           </label>
         </section>
 
