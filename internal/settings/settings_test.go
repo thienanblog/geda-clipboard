@@ -1,6 +1,12 @@
 package settings
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"geda-clipboard/internal/appdir"
+)
 
 func TestNormaliseClampsBothEnds(t *testing.T) {
 	d := Defaults()
@@ -116,5 +122,53 @@ func TestNormalisePopupPlacement(t *testing.T) {
 				t.Errorf("PopupPlacement = %q, want %q", got.PopupPlacement, tc.want)
 			}
 		})
+	}
+}
+
+// writeSettingsFile points the app data directory at a temporary HOME and puts
+// the given JSON there as the stored configuration.
+func writeSettingsFile(t *testing.T, body string) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("AppData", filepath.Join(home, "AppData"))
+
+	dir, err := appdir.Data()
+	if err != nil {
+		t.Fatalf("data dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(body), 0o600); err != nil {
+		t.Fatalf("write settings: %v", err)
+	}
+}
+
+// A configuration written before the detail card moved out of the panel was
+// sized for the docked column, so its width is reset once.
+func TestLoadMigratesWidthFromTheDockedLayout(t *testing.T) {
+	writeSettingsFile(t, `{"popupWidth":720,"popupHeight":520}`)
+
+	m, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got := m.Get().PopupWidth; got != Defaults().PopupWidth {
+		t.Errorf("popup width = %d, want %d", got, Defaults().PopupWidth)
+	}
+	if got := m.Get().PopupHeight; got != 520 {
+		t.Errorf("popup height = %d, want it untouched at 520", got)
+	}
+}
+
+// A width chosen under the current layout is the user's, however wide.
+func TestLoadKeepsWidthChosenUnderTheCurrentLayout(t *testing.T) {
+	writeSettingsFile(t, `{"popupWidth":900,"layoutVersion":1}`)
+
+	m, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got := m.Get().PopupWidth; got != 900 {
+		t.Errorf("popup width = %d, want 900", got)
 	}
 }

@@ -24,8 +24,9 @@ func main() {
 	app := NewApp(trayIcon)
 
 	err := wails.Run(&options.App{
-		Title:  "Geda Clipboard",
-		Width:  app.PopupWidth(),
+		Title: "Geda Clipboard",
+		// The window spans the list panel plus the transparent preview gutter.
+		Width:  app.PopupWidth() + app.PopupGutter(),
 		Height: app.PopupHeight(),
 
 		// The popup is a chromeless panel that floats above other windows and

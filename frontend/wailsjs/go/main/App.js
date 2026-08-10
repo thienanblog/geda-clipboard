@@ -62,6 +62,10 @@ export function PasteItem(arg1) {
   return window['go']['main']['App']['PasteItem'](arg1);
 }
 
+export function PopupGutter() {
+  return window['go']['main']['App']['PopupGutter']();
+}
+
 export function PopupHeight() {
   return window['go']['main']['App']['PopupHeight']();
 }

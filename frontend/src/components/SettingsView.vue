@@ -257,7 +257,10 @@ onUnmounted(() => {
           </label>
           <label class="check">
             <input v-model="cfg.previewOnHover" type="checkbox" @change="save" />
-            <span>Show the detail column beside the list</span>
+            <span>
+              Show details beside the list when pointing at an entry
+              <em>The card floats to the left of the popup; it costs no width.</em>
+            </span>
           </label>
           <label class="check">
             <input v-model="cfg.launchAtLogin" type="checkbox" @change="save" />
@@ -355,7 +358,7 @@ onUnmounted(() => {
               v-model.number="cfg.popupWidth"
               class="num"
               type="number"
-              min="360"
+              min="300"
               max="1600"
               step="20"
               @change="onNumberChange('popupWidth')"

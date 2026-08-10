@@ -49,3 +49,48 @@ int gedaMoveWindow(int x, int y) {
     });
     return moved;
 }
+
+// The frosted material Wails installs is an NSVisualEffectView filling the
+// whole content view, which is what makes an otherwise transparent region of
+// the page show up as a grey slab. Shrinking that view to the panel is what
+// makes the preview gutter genuinely see-through.
+static void gedaSetPanelInsetOnMain(int left, int radius) {
+    NSWindow *window = gedaMainWindow();
+    if (window == nil) {
+        return;
+    }
+
+    NSView *content = [window contentView];
+    for (NSView *view in [content subviews]) {
+        if (![view isKindOfClass:[NSVisualEffectView class]]) {
+            continue;
+        }
+
+        NSRect bounds = [content bounds];
+        CGFloat width = bounds.size.width - left;
+        if (width < 0) {
+            width = 0;
+        }
+        // Left margin fixed, size following the window: the mask Wails set
+        // keeps this frame correct across the resize into the settings view.
+        [view setFrame:NSMakeRect(left, 0, width, bounds.size.height)];
+
+        [view setWantsLayer:YES];
+        [[view layer] setCornerRadius:radius];
+        [[view layer] setMasksToBounds:YES];
+    }
+
+    // The window shadow is derived from the opaque parts of the window, so it
+    // has to be recomputed or it keeps the old, full-width shape.
+    [window invalidateShadow];
+}
+
+void gedaSetPanelInset(int left, int radius) {
+    if ([NSThread isMainThread]) {
+        gedaSetPanelInsetOnMain(left, radius);
+        return;
+    }
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        gedaSetPanelInsetOnMain(left, radius);
+    });
+}

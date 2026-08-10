@@ -17,3 +17,12 @@ package window
 // passed through here in logical pixels would be applied as physical ones and
 // shrink the window on any scaled display.
 func MoveTo(x, y int) bool { return moveTo(x, y) }
+
+// SetPanelInset says how much of the window, measured from its left edge, is
+// transparent gutter rather than panel, and how far the panel's own corners are
+// rounded.
+//
+// macOS draws the frosted window material behind the entire window, so without
+// this the gutter shows up as a grey slab exactly where the popup is meant to
+// be see-through. Platforms that have no window-wide material do nothing.
+func SetPanelInset(left, radius int) { setPanelInset(left, radius) }

@@ -36,6 +36,16 @@ const (
 	// The settings view needs more room than the popup list.
 	settingsWidth  = 760
 	settingsHeight = 640
+
+	// previewGutter is the width of the transparent strip the popup window keeps
+	// to the left of the list, so the hover preview card has somewhere to appear
+	// beside the row it describes. The list panel itself stays PopupWidth wide;
+	// the gutter only costs window area, not visible chrome.
+	previewGutter = 300
+
+	// panelRadius matches --radius-panel in the stylesheet: the frosted window
+	// material is rounded to the same corners the panel draws for itself.
+	panelRadius = 12
 )
 
 // View identifies which screen the single window is currently showing.
@@ -99,6 +109,16 @@ func (a *App) PopupWidth() int { return a.settings.Get().PopupWidth }
 
 // PopupHeight is the configured popup height.
 func (a *App) PopupHeight() int { return a.settings.Get().PopupHeight }
+
+// PopupGutter is the width of the transparent strip the popup window reserves
+// on its left for the hover preview card, or 0 when previews are off. The
+// frontend needs it to lay the panel out flush with the right of the window.
+func (a *App) PopupGutter() int {
+	if !a.settings.Get().PreviewOnHover {
+		return 0
+	}
+	return previewGutter
+}
 
 // OnStartup wires up the tray, clipboard watcher and hotkey once Wails is ready.
 func (a *App) OnStartup(ctx context.Context) {
@@ -330,6 +350,10 @@ func (a *App) showPopupAt(anchor tray.Anchor) {
 
 	cfg := a.settings.Get()
 	w, h := cfg.PopupWidth, cfg.PopupHeight
+	gutter := 0
+	if cfg.PreviewOnHover {
+		gutter = previewGutter
+	}
 
 	a.mu.Lock()
 	a.view = ViewPopup
@@ -342,9 +366,12 @@ func (a *App) showPopupAt(anchor tray.Anchor) {
 	a.mu.Unlock()
 
 	wruntime.EventsEmit(a.ctx, "view:changed", string(ViewPopup))
-	wruntime.WindowSetSize(a.ctx, w, h)
+	wruntime.WindowSetSize(a.ctx, w+gutter, h)
+	// The frosted material has to stop where the panel starts, or the gutter
+	// shows as a grey slab instead of being see-through.
+	window.SetPanelInset(gutter, panelRadius)
 
-	place, ok := popupPosition(cfg.PopupPlacement, anchor, w, h)
+	place, ok := popupPosition(cfg.PopupPlacement, anchor, w, h, gutter)
 	switch {
 	case !ok:
 		// Neither the pointer nor the tray icon could be located.
@@ -382,9 +409,18 @@ var (
 // the tray anchor is unknown until the icon has been clicked once, and the
 // pointer cannot be read on every platform. ok is false only when neither can
 // answer, which leaves the caller to centre the window.
-func popupPosition(mode string, anchor tray.Anchor, w, h int) (placement, bool) {
+//
+// w and h are the size of the visible list panel; gutter is the transparent
+// strip the window carries to its left for the preview card. The placement is
+// computed for the panel and then shifted left by the gutter, so the list still
+// lands where the user aimed -- unless that would push the window off the left
+// edge, in which case the window stops there and the panel sits further right.
+func popupPosition(mode string, anchor tray.Anchor, w, h, gutter int) (placement, bool) {
 	resolve := func(a tray.Anchor, at func(int, int) (int, int)) placement {
 		x, y := at(w, h)
+		if x -= gutter; x < 0 {
+			x = 0
+		}
 		globalX, globalY := a.Global(x, y)
 		return placement{RelX: x, RelY: y, GlobalX: globalX, GlobalY: globalY}
 	}
@@ -659,6 +695,8 @@ func (a *App) ShowSettings() {
 
 	wruntime.EventsEmit(a.ctx, "view:changed", string(ViewSettings))
 	wruntime.WindowSetSize(a.ctx, settingsWidth, settingsHeight)
+	// Preferences fill the window, so the material does too.
+	window.SetPanelInset(0, panelRadius)
 	wruntime.WindowCenter(a.ctx)
 	wruntime.WindowShow(a.ctx)
 }

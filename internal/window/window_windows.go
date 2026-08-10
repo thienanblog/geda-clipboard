@@ -108,3 +108,7 @@ func moveTo(x, y int) bool {
 	)
 	return ret != 0
 }
+
+// setPanelInset is a no-op on Windows: the window has no material of its own,
+// so a transparent region of the WebView is already see-through.
+func setPanelInset(left, radius int) {}
