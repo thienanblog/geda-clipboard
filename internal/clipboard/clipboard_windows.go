@@ -161,6 +161,10 @@ func read() (Snapshot, error) {
 	// ExcludeClipboardContentFromMonitorProcessing is a bare marker: publishing
 	// it at all is the request. The other two carry a DWORD, where 0 means
 	// "don't" and 1 means "you may", so their value has to be read.
+	//
+	// Snapshot.Remote stays false here: content arriving from the Windows cloud
+	// clipboard reaches this process as an ordinary local copy, with no format
+	// marking it as coming from another device.
 	snap := Snapshot{
 		Concealed: formatPresent("ExcludeClipboardContentFromMonitorProcessing"),
 		Transient: optedOut("CanIncludeInClipboardHistory") ||

@@ -7,7 +7,7 @@ long long gedaChangeCount(void);
 
 // Reads the pasteboard. kind: 0 none, 1 text, 2 image (PNG in img/imgLen).
 void gedaRead(int *kind, char **text, void **img, int *imgLen,
-              int *concealed, int *transient);
+              int *concealed, int *transient, int *remote);
 
 long long gedaWriteText(const char *text);
 long long gedaWriteImage(const void *bytes, int len);

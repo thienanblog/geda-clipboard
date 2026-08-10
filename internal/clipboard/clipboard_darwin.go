@@ -27,13 +27,15 @@ func read() (Snapshot, error) {
 		imgLen    C.int
 		concealed C.int
 		transient C.int
+		remote    C.int
 	)
 
-	C.gedaRead(&kind, &text, &img, &imgLen, &concealed, &transient)
+	C.gedaRead(&kind, &text, &img, &imgLen, &concealed, &transient, &remote)
 
 	snap := Snapshot{
 		Concealed: concealed != 0,
 		Transient: transient != 0,
+		Remote:    remote != 0,
 	}
 
 	switch kind {
