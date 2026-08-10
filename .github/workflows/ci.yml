@@ -96,3 +96,16 @@ jobs:
 
       - name: go test
         run: go test ./...
+
+      # Windows is not a machine this project is developed on, so without this
+      # there is no way to actually run a change on it short of cutting a
+      # release tag. The executable is attached to the run, downloadable from
+      # its summary page. Public repositories are not billed for this.
+      - name: Upload the Windows build
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: geda-clipboard-windows-amd64
+          path: "build/bin/Geda Clipboard.exe"
+          if-no-files-found: error
+          retention-days: 14

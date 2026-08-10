@@ -42,6 +42,19 @@ changes and the patch version for fixes.
 
 ### Fixed
 
+- Copies handed over from an iPhone or iPad by Universal Clipboard are no longer
+  attributed to whichever Mac app happened to be frontmost, which also meant
+  they were dropped silently whenever that app was on the ignore list — a list
+  the copy had nothing to do with. They are labelled *Universal Clipboard*
+  instead, recognised by the `com.apple.is-remote-clipboard` pasteboard type,
+  and exempt from the ignore list. Verified against an iPhone: the type is
+  present on Handoff copies of both text and images, and absent on local ones.
+- A copy whose payload cannot be read yet is retried for a few seconds instead
+  of being dropped on the first empty read. The change counter is consumed by
+  then and never repeats, so a single empty read used to lose the entry for
+  good. In practice a Universal Clipboard read blocks until the transfer
+  completes rather than returning empty — measured at 1.3s for a short text and
+  0.4s for a 7MB photo — so this is insurance against a transfer that fails.
 - Pressing the shortcut before the tray icon has been clicked no longer centres
   the popup: the two placements now fall back to each other, and the window is
   only centred when neither the pointer nor the icon can be located.

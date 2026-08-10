@@ -23,6 +23,11 @@ were working in.
   OS clipboard change counter, so an identical re-copy is still detected.
 - **Provenance** — each entry records the app it came from, with its icon, plus
   first/last copy time.
+- **Universal Clipboard** — copies handed over from an iPhone or iPad are
+  recorded and notified like any other, labelled *Universal Clipboard* rather
+  than blamed on whichever Mac app happened to be frontmost, and never dropped
+  by that app's ignore-list entry. The payload comes across on demand, so the
+  notification lands a second or so after the copy.
 - **Pin** entries to keep them past the history limit; **delete** individually
   or clear everything.
 - **Paste back into the previous app**: the app you came from is remembered

@@ -35,6 +35,11 @@ const (
 	// Size of the source-app icon captured alongside each entry.
 	appIconPx = 32
 
+	// Provenance shown for a copy that arrived from another device over
+	// Universal Clipboard. The pasteboard never says which device it was, so
+	// this is as specific as the label can honestly be, and there is no icon.
+	remoteSourceName = "Universal Clipboard"
+
 	// The settings view needs more room than the popup list.
 	settingsWidth  = 760
 	settingsHeight = 640
@@ -200,7 +205,13 @@ func (a *App) onClipboardChange(snap clipboard.Snapshot, source clipboard.App) {
 	if cfg.IgnoreTransient && snap.Transient {
 		return
 	}
-	if cfg.IsIgnored(source.Name) {
+	if snap.Remote {
+		// A copy handed over from another device has no app behind it on this
+		// machine. Whatever happens to be frontmost here did not produce it, so
+		// naming it would be a lie -- and matching it against the ignore list
+		// would drop an unrelated copy.
+		source = clipboard.App{Name: remoteSourceName}
+	} else if cfg.IsIgnored(source.Name) {
 		return
 	}
 	if snap.Kind == clipboard.KindImage && !cfg.CaptureImages {
