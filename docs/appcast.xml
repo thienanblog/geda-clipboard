@@ -4,17 +4,15 @@
   https://thienanblog.github.io/geda-clipboard/appcast.xml
 
   Generated, not hand-edited. After publishing a release, download its macOS
-  archive into an otherwise empty folder and run:
+  archive into an otherwise empty folder and run generate_appcast over that
+  folder, writing here. See scripts/README for the exact invocation: the flags
+  it needs are spelled with double hyphens, and XML forbids those inside a
+  comment, so this file cannot quote the command it was made by.
 
-      ./build/darwin/sparkle-bin/generate_appcast \
-        --download-url-prefix "https://github.com/thienanblog/geda-clipboard/releases/download/vX.Y.Z/" \
-        --link "https://github.com/thienanblog/geda-clipboard" \
-        -o docs/appcast.xml <folder>
-
-  It reads the version and the minimum system version out of the bundle, and
-  signs the enclosure with the EdDSA key in the login keychain. length and
-  edSignature describe one exact file; a value that is merely close makes
-  Sparkle reject the update and blame the download.
+  generate_appcast reads the version and the minimum system version out of the
+  bundle, and signs the enclosure with the EdDSA key in the login keychain.
+  length and edSignature describe one exact file; a value that is merely close
+  makes Sparkle reject the update and blame the download.
 
   The archives stay on Releases, where each URL names the version it belongs
   to. Only this file lives on Pages, because a feed has to keep one address
