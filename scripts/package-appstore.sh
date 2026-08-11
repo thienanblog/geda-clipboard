@@ -92,6 +92,29 @@ cp "$profile" "$app/Contents/embedded.provisionprofile"
 echo "==> Setting the build number"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app/Contents/Info.plist"
 
+echo "==> Stripping extended attributes"
+# The provisioning profile is downloaded from developer.apple.com in a browser,
+# so it arrives quarantined, and the quarantine flag propagates to the copy the
+# line above makes -- cp -X does not help, because the kernel applies the flag
+# to the new file rather than copying it across. productbuild then carries the
+# attribute into the payload, and Transporter refuses the upload:
+#
+#   Invalid package contents. The package contains one or more files with the
+#   com.apple.quarantine extended file attribute, such as
+#   "com.geda.clipboard.pkg/Payload/Geda Clipboard.app/Contents/
+#   embedded.provisionprofile". (91109)
+#
+# Nothing before the upload notices: the bundle launches, codesign --verify
+# passes, and productbuild exits zero. Clear the attributes off the whole
+# bundle rather than just the profile, since anything else fetched with a
+# browser would land the same way. This has to happen before signing --
+# com.apple.FinderInfo and resource forks make codesign itself fail, and
+# clearing them afterwards would mean touching a signed bundle.
+#
+# com.apple.provenance survives; it is applied by the system and cannot be
+# removed. It does not reach the payload and Apple does not object to it.
+xattr -cr "$app"
+
 echo "==> Signing"
 # No --options runtime here: the hardened runtime is a Developer ID
 # requirement, and the App Store does not ask for it.
@@ -117,6 +140,28 @@ echo "==> Building the installer package"
 rm -f "$pkg"
 productbuild --component "$app" /Applications \
   --sign "$installer_identity" "$pkg"
+
+echo "==> Checking the payload carries no quarantine"
+# Read it back out of the finished package rather than trusting the strip
+# above, for the same reason package-macos.sh reads the entitlements back out
+# of the signature: the failure this guards against is silent locally and only
+# shows up as a rejected upload. --expand-full unpacks the payload with its
+# extended attributes intact, which is the only way to see what Transporter
+# will see.
+expanded="$(mktemp -d)"
+trap 'rm -rf "$expanded"' EXIT
+rm -rf "$expanded/pkg"
+pkgutil --expand-full "$pkg" "$expanded/pkg" >/dev/null
+# Captured rather than tested through a pipeline: under pipefail an xattr
+# failure would mask a grep match and turn the check into a no-op.
+quarantined="$(xattr -lr "$expanded/pkg" 2>/dev/null | grep com.apple.quarantine || true)"
+if [ -n "$quarantined" ]; then
+  echo "    Quarantined files in the payload:" >&2
+  printf '%s\n' "$quarantined" >&2
+  echo "Refusing the package: Transporter would reject it with 91109." >&2
+  exit 1
+fi
+echo "    clean"
 
 echo "==> Done: $pkg"
 echo "    Upload it with Transporter."

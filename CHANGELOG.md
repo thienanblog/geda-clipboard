@@ -9,6 +9,15 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+### Fixed
+
+- The App Store package no longer carries a quarantine flag. The provisioning
+  profile is downloaded in a browser, so it is quarantined, and the flag
+  propagates to the copy embedded in the bundle; Transporter rejects the upload
+  over it (91109) after everything local has passed.
+  `scripts/package-appstore.sh` now clears extended attributes before signing
+  and reads the finished payload back to prove none survived.
+
 ## [0.6.1] - 2026-08-11
 
 ### Fixed

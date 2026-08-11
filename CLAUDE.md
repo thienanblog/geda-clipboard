@@ -147,6 +147,16 @@ why `package-appstore.sh` refuses to package if a framework, a linked library,
 an updater symbol or a Sparkle `Info.plist` key made it in. Apple scans the
 bundle, not the source.
 
+**Quarantine propagates into the App Store package.** The provisioning profile
+is downloaded in a browser, so it carries `com.apple.quarantine`, and the flag
+lands on the copy embedded in the bundle — the kernel applies it to the new
+file, so `cp -X` does not avoid it. `productbuild` then writes it into the
+payload and Transporter rejects the upload with 91109, after the bundle has
+launched, `codesign --verify` has passed and everything local has exited zero.
+`package-appstore.sh` clears extended attributes before signing and expands the
+finished package to prove none survived. Anything else fetched with a browser
+and dropped into the bundle arrives the same way.
+
 ## Signing material
 
 Certificates and keys live outside the repository, in
