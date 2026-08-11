@@ -81,6 +81,15 @@ func Paste() error { return paste() }
 // keystrokes. When prompt is true the user may be asked to grant it.
 func HasPastePermission(prompt bool) bool { return hasPastePermission(prompt) }
 
+// OpenPastePermissionSettings reveals the settings pane where the user grants
+// permission to synthesise keystrokes.
+//
+// This is not redundant with the prompt HasPastePermission can raise. macOS
+// shows that prompt once per TCC record and silently does nothing every time
+// after, so a button wired only to the prompt looks broken to exactly the user
+// who needs it: the one who dismissed it the first time.
+func OpenPastePermissionSettings() error { return openPastePermissionSettings() }
+
 // pendingReadTicks is how many further polls a change gets when the counter has
 // moved but nothing readable is on the clipboard yet.
 //

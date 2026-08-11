@@ -125,3 +125,10 @@ func hasPastePermission(prompt bool) bool {
 	}
 	return C.gedaHasAccessibility(p) != 0
 }
+
+func openPastePermissionSettings() error {
+	if C.gedaOpenAccessibilitySettings() == 0 {
+		return errors.New("could not open System Settings")
+	}
+	return nil
+}

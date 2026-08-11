@@ -270,6 +270,20 @@ int gedaHasAccessibility(int prompt) {
     }
 }
 
+int gedaOpenAccessibilitySettings(void) {
+    @autoreleasepool {
+        // Handing the URL to Launch Services rather than spawning /usr/bin/open
+        // keeps this working inside the App Sandbox, where the App Store build
+        // runs and where this button matters most. The query string is the
+        // anchor System Settings uses to select the Accessibility list; without
+        // it the user lands on Privacy & Security and has to find it.
+        NSURL *url = [NSURL URLWithString:@"x-apple.systempreferences:"
+                                          @"com.apple.preference.security?"
+                                          @"Privacy_Accessibility"];
+        return [[NSWorkspace sharedWorkspace] openURL:url] ? 1 : 0;
+    }
+}
+
 // sendPasteKeystroke synthesises Cmd+V at the HID level so the frontmost app
 // receives it as an ordinary paste.
 static void sendPasteKeystroke(void) {

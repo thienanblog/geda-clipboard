@@ -9,6 +9,39 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-12
+
+### Fixed
+
+- **The keyboard shortcut works in the App Store build.** ⌘⇧V did nothing, and
+  neither did any combination assigned in its place. The hotkey library
+  implements macOS shortcuts as a keyboard event tap, which observes every
+  keystroke in the session and is therefore refused unless the application is
+  already trusted for Accessibility. The App Store build is a separate
+  application as far as macOS privacy records are concerned, so nothing carried
+  over from a Developer ID copy, and the app has no way to earn that trust
+  before it has shown the user anything — the shortcut being the only way to
+  show them anything. macOS shortcuts are now claimed through
+  RegisterEventHotKey, which reserves one combination instead of watching the
+  keyboard and needs no permission at all; it was verified registering and
+  firing inside the sandbox with Accessibility withheld. Windows is unchanged:
+  its side of the library already used RegisterHotKey.
+
+- **A shortcut that cannot be registered says so.** The failure only reached
+  the log, so an application whose one entry point is a shortcut looked simply
+  broken. Preferences now reports it under the shortcut, including the case
+  worth acting on: another application already owns the combination.
+
+### Added
+
+- **Accessibility permission can be reached in one click.** macOS shows the
+  permission prompt once per application and silently does nothing on every
+  later attempt, which left the existing button appearing dead for the user who
+  had dismissed it. Preferences now also offers **Open Accessibility settings…**,
+  which reveals the list directly, and re-checks the permission when the window
+  returns to the front — macOS does not tell a running application that the
+  grant landed, so the warning used to persist until the next launch.
+
 ## [0.6.2] - 2026-08-12
 
 ### Fixed
@@ -252,7 +285,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.5.0...v0.6.0

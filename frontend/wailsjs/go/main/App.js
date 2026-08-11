@@ -62,8 +62,16 @@ export function OnWindowBlur() {
   return window['go']['main']['App']['OnWindowBlur']();
 }
 
+export function OpenPastePermissionSettings() {
+  return window['go']['main']['App']['OpenPastePermissionSettings']();
+}
+
 export function PasteItem(arg1) {
   return window['go']['main']['App']['PasteItem'](arg1);
+}
+
+export function PastePermission() {
+  return window['go']['main']['App']['PastePermission']();
 }
 
 export function PopupGutter() {

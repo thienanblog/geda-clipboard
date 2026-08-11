@@ -3,8 +3,7 @@ package hotkeys
 import (
 	"errors"
 	"testing"
-
-	"golang.design/x/hotkey"
+	"time"
 )
 
 func TestParseValid(t *testing.T) {
@@ -12,8 +11,12 @@ func TestParseValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	if key != hotkey.KeyV {
-		t.Errorf("key = %v, want KeyV", key)
+	wantV, ok := lookupKey("v")
+	if !ok {
+		t.Fatal("this platform has no code for \"v\"")
+	}
+	if key != wantV {
+		t.Errorf("key = %v, want %v", key, wantV)
 	}
 	if len(mods) != 2 {
 		t.Fatalf("got %d modifiers, want 2", len(mods))
@@ -98,13 +101,13 @@ func TestParseModifierAliases(t *testing.T) {
 // be exercised without a window server.
 type fakeRegistration struct {
 	err          error
-	keydown      chan hotkey.Event
+	keydown      chan struct{}
 	unregistered bool
 }
 
-func (f *fakeRegistration) Register() error              { return f.err }
-func (f *fakeRegistration) Unregister() error            { f.unregistered = true; return nil }
-func (f *fakeRegistration) Keydown() <-chan hotkey.Event { return f.keydown }
+func (f *fakeRegistration) Register() error          { return f.err }
+func (f *fakeRegistration) Unregister() error        { f.unregistered = true; return nil }
+func (f *fakeRegistration) Keydown() <-chan struct{} { return f.keydown }
 
 // swapRegistrations installs a fake factory returning each entry of fakes in
 // order, and restores the real one afterwards.
@@ -112,7 +115,7 @@ func swapRegistrations(t *testing.T, fakes ...*fakeRegistration) {
 	t.Helper()
 	original := newRegistration
 	i := 0
-	newRegistration = func([]hotkey.Modifier, hotkey.Key) registration {
+	newRegistration = func([]Modifier, Key) registration {
 		if i >= len(fakes) {
 			t.Fatalf("newRegistration called %d times, only %d fakes provided", i+1, len(fakes))
 		}
@@ -124,7 +127,7 @@ func swapRegistrations(t *testing.T, fakes ...*fakeRegistration) {
 }
 
 func newFake(err error) *fakeRegistration {
-	return &fakeRegistration{err: err, keydown: make(chan hotkey.Event)}
+	return &fakeRegistration{err: err, keydown: make(chan struct{})}
 }
 
 // The point of registering before unregistering: a combination another
@@ -210,5 +213,35 @@ func TestRegisterEmptySpecUnregisters(t *testing.T) {
 	}
 	if m.Spec() != "" {
 		t.Errorf("Spec = %q, want empty", m.Spec())
+	}
+}
+
+// The settings UI offers every name in keyNames on both platforms, so a table
+// missing one would ship a shortcut the user can pick and the app then refuses
+// to register -- the failure this package was rewritten to stop hiding.
+func TestEveryCanonicalKeyNameResolvesOnThisPlatform(t *testing.T) {
+	for _, name := range keyNames {
+		if _, ok := lookupKey(name); !ok {
+			t.Errorf("lookupKey(%q) failed; this platform's table is missing it", name)
+		}
+	}
+}
+
+// A press has to reach the callback, which is the whole point of the package.
+func TestAPressReachesTheCallback(t *testing.T) {
+	only := newFake(nil)
+	swapRegistrations(t, only)
+
+	fired := make(chan struct{}, 1)
+	m := New(func() { fired <- struct{}{} })
+	if err := m.Register("cmd+shift+v"); err != nil {
+		t.Fatal(err)
+	}
+	only.keydown <- struct{}{}
+
+	select {
+	case <-fired:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the callback never ran")
 	}
 }

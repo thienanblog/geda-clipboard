@@ -35,7 +35,11 @@ export function OnRightClick(arg1:tray.Anchor):Promise<void>;
 
 export function OnWindowBlur():Promise<void>;
 
+export function OpenPastePermissionSettings():Promise<void>;
+
 export function PasteItem(arg1:string):Promise<void>;
+
+export function PastePermission():Promise<boolean>;
 
 export function PopupGutter():Promise<number>;
 
