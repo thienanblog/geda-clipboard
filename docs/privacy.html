@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Geda Clipboard</title>
+<meta name="description" content="Geda Clipboard collects no data. Everything it records stays on your Mac.">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Geda Clipboard</p>
+  <h1>Privacy Policy</h1>
+  <p class="lede">Geda Clipboard collects nothing, transmits nothing, and has no servers. Everything it records stays on your Mac.</p>
+</header>
+
+<p><strong>Last updated: 11 August 2026.</strong> This policy covers the macOS
+application <em>Geda Clipboard</em> ("the app"), published by Ân Vũ ("we", "us").</p>
+
+<h2>The short version</h2>
+
+<div class="callout">
+  <p>The app has no account, no analytics, no advertising, no tracking and no
+  network connection of any kind in the Mac App Store build. Your clipboard
+  history is written to a private folder on your own Mac and is never sent
+  anywhere. We cannot see it, and neither can anybody else.</p>
+</div>
+
+<h2>What the app stores, and where</h2>
+
+<p>To do its job, the app keeps a history of what you copy. That history is
+held only on your Mac, inside the sandboxed container macOS gives the app:</p>
+
+<p><code>~/Library/Containers/com.geda.clipboard/Data/Library/Application&nbsp;Support/geda-clipboard/</code></p>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>What</th><th>Why it exists</th><th>Where it lives</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Text you copy</td>
+      <td>So you can find and paste it again</td>
+      <td><code>history.json</code>, on your Mac</td>
+    </tr>
+    <tr>
+      <td>Images you copy</td>
+      <td>Same, plus a small thumbnail for the list</td>
+      <td><code>blobs/</code>, on your Mac</td>
+    </tr>
+    <tr>
+      <td>The name and icon of the app you copied from</td>
+      <td>So each entry shows where it came from</td>
+      <td><code>history.json</code> and <code>icons.json</code>, on your Mac</td>
+    </tr>
+    <tr>
+      <td>Times and copy counts</td>
+      <td>To order the list and show how often an entry recurs</td>
+      <td><code>history.json</code>, on your Mac</td>
+    </tr>
+    <tr>
+      <td>Your preferences</td>
+      <td>To remember how you configured the app</td>
+      <td><code>settings.json</code>, on your Mac</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>No part of this leaves your computer. There is no cloud sync, no backup
+service and no telemetry.</p>
+
+<h2>What the app deliberately does not record</h2>
+
+<ul>
+  <li><strong>Anything a password manager marks as confidential.</strong> The app
+    honours the <code>org.nspasteboard.ConcealedType</code> convention that
+    password managers use to opt out, and skips those copies entirely. This is
+    on by default.</li>
+  <li><strong>Anything marked temporary by the app that produced it.</strong> Also
+    on by default.</li>
+  <li><strong>Copies from apps you list as ignored.</strong> You can name any
+    application in Preferences and the app will never record a copy from it.</li>
+</ul>
+
+<h2>Data collected by us: none</h2>
+
+<p>In Apple's terms, the app collects <strong>no data</strong>. We operate no
+servers, hold no database, and have no way to receive information from your
+copy of the app. We do not know that you have installed it.</p>
+
+<h2>Third parties</h2>
+
+<p>The Mac App Store build bundles no analytics SDK, no advertising SDK, no
+crash reporter and no third-party framework of any kind. Nothing in the app
+contacts a third-party service.</p>
+
+<p>Apple provides us with anonymous, aggregated sales and crash statistics
+through App Store Connect, as it does for every app on the store. That data is
+collected by Apple under Apple's own privacy policy, not by us, and it does not
+identify you.</p>
+
+<h2>Permissions the app may ask for</h2>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>Permission</th><th>What it is used for</th><th>If you decline</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Notifications</td>
+      <td>To post the alert shown when you copy or paste</td>
+      <td>Everything else works; the alerts are simply not shown</td>
+    </tr>
+    <tr>
+      <td>Accessibility</td>
+      <td>To press <code>⌘V</code> for you so an entry lands back in the app you were using</td>
+      <td>Everything else works; the entry is placed on your clipboard and you paste it yourself</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>Neither permission sends anything anywhere. Both are optional and can be
+withdrawn at any time in System Settings.</p>
+
+<h2>Your control over the data</h2>
+
+<ul>
+  <li><strong>Delete one entry</strong> — select it in the popup and press
+    <code>⌥⌫</code>.</li>
+  <li><strong>Delete everything</strong> — <em>Clear all</em> in the popup, or
+    <code>⌥⇧⌘⌫</code>.</li>
+  <li><strong>Limit what is kept</strong> — Preferences sets the maximum number
+    of entries; older ones are discarded automatically.</li>
+  <li><strong>Remove it all</strong> — deleting the app removes its container,
+    and the history with it.</li>
+</ul>
+
+<p>Because we never receive any of it, there is nothing for you to request from
+us and nothing for us to delete on your behalf.</p>
+
+<h2>Children</h2>
+
+<p>The app is rated 4+ and collects no data from anybody, including children
+under 13. It contains no advertising, no in-app purchases and no user-generated
+content.</p>
+
+<h2>Changes to this policy</h2>
+
+<p>If this policy changes, the revised version will be published at this
+address with a new date at the top. Material changes will also be noted in the
+app's release notes.</p>
+
+<h2>Contact</h2>
+
+<p>Questions about this policy, or about the app's handling of your data, are
+best raised as an issue on the project's public tracker:
+<a href="https://github.com/thienanblog/geda-clipboard/issues">github.com/thienanblog/geda-clipboard/issues</a>.</p>
+
+<footer class="colophon">
+  <p>© 2026 Ân Vũ. Geda Clipboard is open source; the code behind every claim on
+  this page can be read at
+  <a href="https://github.com/thienanblog/geda-clipboard">github.com/thienanblog/geda-clipboard</a>.</p>
+  <div class="nav">
+    <a href="index.html">Home</a>
+    <a href="support.html">Support</a>
+    <a href="terms.html">Terms of Use</a>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>
