@@ -26,6 +26,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      signed: ${{ steps.signing.outputs.signed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +46,23 @@ jobs:
           if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
             echo "Tag $GITHUB_REF_NAME does not match wails.json ($version): expected v$version" >&2
             exit 1
+          fi
+
+      # Signing is opt-in on the presence of the certificate: a fork, or this
+      # repository before the Developer ID secrets exist, still gets a working
+      # release -- just an unsigned one, with the first-launch workaround left
+      # in the notes. Decided here rather than on the macOS runner so the
+      # publish job can read it without threading an output out of a matrix.
+      - name: Decide whether this build can be signed
+        id: signing
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+        run: |
+          if [ -n "$CERTIFICATE" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::MACOS_CERT_P12_BASE64 is not set; the macOS build will be unsigned."
           fi
 
   package:
@@ -86,8 +104,100 @@ jobs:
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
 
+      # macOS is built further down instead, by scripts/package-macos.sh: that
+      # build needs Sparkle embedded and signed as part of the same pass, and
+      # it has to happen after the certificate is in the keychain.
       - name: Build
+        if: runner.os == 'Windows'
         run: wails build -clean -platform ${{ matrix.platform }}
+
+      # A keychain of its own, created for this run and thrown away with the
+      # runner. Importing into the login keychain would work too, but this way
+      # nothing that follows can reach the key by accident.
+      - name: Import the signing certificate
+        if: runner.os == 'macOS' && needs.verify.outputs.signed == 'true'
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          # security import cannot read a .p12 that was exported without one:
+          # it fails MAC verification whether the empty password is passed or
+          # the flag is left off entirely, and reports it as "wrong password?",
+          # which sends you looking for a typo that is not there. Say what is
+          # actually wrong instead.
+          if [ -z "$CERTIFICATE_PASSWORD" ]; then
+            echo "MACOS_CERT_PASSWORD is empty. Re-export the .p12 from Keychain Access with a password set; a passwordless .p12 cannot be imported non-interactively." >&2
+            exit 1
+          fi
+
+          keychain="$RUNNER_TEMP/build.keychain-db"
+          certificate="$RUNNER_TEMP/certificate.p12"
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$certificate"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          # Six hours, and no lock on sleep: the default relocks after five
+          # minutes of idle, which notarisation waits comfortably past.
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security import "$certificate" -k "$keychain" \
+            -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+
+          # Without this, codesign stops to ask for keychain access through a
+          # dialog box that nobody is there to click.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$keychain" > /dev/null
+
+          security list-keychain -d user -s "$keychain" login.keychain-db
+
+          rm -f "$certificate"
+
+      # Build, embed Sparkle and sign, all through the same script a developer
+      # runs by hand. Duplicating those steps inline here is how the two drift:
+      # the signing order, the rpath and the Info.plist keys all have to agree,
+      # and a release built by CI should not be assembled differently from one
+      # built locally. The script signs only when SIGN_IDENTITY is set, so the
+      # unsigned path stays a working build rather than a special case.
+      - name: Build and package
+        if: runner.os == 'macOS'
+        env:
+          SIGN_IDENTITY: ${{ needs.verify.outputs.signed == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
+        run: |
+          ./scripts/fetch-sparkle.sh
+          ./scripts/package-macos.sh
+
+      - name: Notarize and staple
+        if: runner.os == 'macOS' && needs.verify.outputs.signed == 'true'
+        env:
+          API_KEY: ${{ secrets.AC_API_KEY_P8_BASE64 }}
+          API_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.AC_API_ISSUER_ID }}
+        run: |
+          app="build/bin/Geda Clipboard.app"
+          key="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$API_KEY" | base64 --decode > "$key"
+
+          # The notary service takes an archive, never a bare .app. This zip is
+          # a throwaway: what gets published is re-made further down, after the
+          # ticket has been stapled into the bundle.
+          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/notarize.zip"
+
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$key" \
+            --key-id "$API_KEY_ID" \
+            --issuer "$API_ISSUER_ID" \
+            --wait --timeout 30m
+
+          rm -f "$key"
+
+          # Stapling writes the ticket into the bundle so a machine that is
+          # offline on first launch can still see it was notarised.
+          xcrun stapler staple "$app"
+          xcrun stapler validate "$app"
+
+          # The check that actually matters: this is Gatekeeper's own verdict,
+          # and it should read "source=Notarized Developer ID".
+          spctl --assess --verbose=4 --type execute "$app"
 
       # ditto rather than zip: a .app is a bundle of symlinks and permission
       # bits that plain zip flattens, which breaks the signature and leaves
@@ -130,13 +240,16 @@ jobs:
           path: dist
           merge-multiple: true
 
-      # The release notes are the changelog section for this version, plus the
-      # first-launch steps: these builds are unsigned, so both operating
-      # systems block them until the user explicitly overrides, and a download
-      # without that explanation looks broken.
+      # The release notes are the changelog section for this version, plus
+      # whatever first-launch steps this build actually needs. The Windows
+      # build is unsigned and SmartScreen blocks it until the user overrides;
+      # the macOS build only needs the same treatment when it went out
+      # unsigned too, and saying so when it did not would be worse than saying
+      # nothing -- it reads as an admission that the signature is untrustworthy.
       - name: Assemble the release notes
         env:
           VERSION: ${{ needs.verify.outputs.version }}
+          SIGNED: ${{ needs.verify.outputs.signed }}
         run: |
           # Stops at the next version heading -- or, for the oldest section,
           # at the link definitions that close the file.
@@ -146,11 +259,28 @@ jobs:
             inside
           ' CHANGELOG.md > notes.md
 
+          # The heredoc bodies below sit at the same column as the `cat` that
+          # opens them, including inside the branches: YAML strips this block's
+          # common indent, which lands them at column 0 before the shell ever
+          # sees them. Indenting them to match the `if` would carry that extra
+          # depth through and turn the notes into a code block.
+          echo >> notes.md
+          echo '### First launch' >> notes.md
+
+          if [ "$SIGNED" = "true" ]; then
           cat >> notes.md <<'EOF'
 
-          ### First launch
+          **macOS** — unzip, move `Geda Clipboard.app` to `/Applications`, and
+          open it. The build is signed and notarized, so Gatekeeper lets it
+          through without any extra step. Geda has no window of its own: look
+          for its icon in the menu bar.
 
-          These builds are unsigned, so both systems ask before running them.
+          To paste an earlier entry back into the app you came from, Geda needs
+          Accessibility permission — it asks the first time, and everything
+          else works whether you grant it or not.
+          EOF
+          else
+          cat >> notes.md <<'EOF'
 
           **macOS** — unzip, move `Geda Clipboard.app` to `/Applications`, then:
 
@@ -158,8 +288,13 @@ jobs:
           xattr -dr com.apple.quarantine "/Applications/Geda Clipboard.app"
           ```
 
-          Without this, Gatekeeper reports the app as damaged. Geda has no
-          window of its own: look for its icon in the menu bar.
+          Without this, Gatekeeper reports the app as damaged, which is what an
+          unsigned download looks like to it. Geda has no window of its own:
+          look for its icon in the menu bar.
+          EOF
+          fi
+
+          cat >> notes.md <<'EOF'
 
           **Windows** — unzip and run `Geda Clipboard.exe`. SmartScreen shows a
           warning: choose **More info › Run anyway**. The app lives in the
