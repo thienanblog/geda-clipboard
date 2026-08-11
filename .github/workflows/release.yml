@@ -270,10 +270,16 @@ jobs:
           if [ "$SIGNED" = "true" ]; then
           cat >> notes.md <<'EOF'
 
-          **macOS** — unzip, move `Geda Clipboard.app` to `/Applications`, and
-          open it. The build is signed and notarized, so Gatekeeper lets it
-          through without any extra step. Geda has no window of its own: look
-          for its icon in the menu bar.
+          **macOS** — with Homebrew:
+
+          ```bash
+          brew install --cask thienanblog/tap/geda-clipboard
+          ```
+
+          Or unzip, move `Geda Clipboard.app` to `/Applications`, and open it.
+          The build is signed and notarized, so Gatekeeper lets it through
+          without any extra step. Geda has no window of its own: look for its
+          icon in the menu bar.
 
           To paste an earlier entry back into the app you came from, Geda needs
           Accessibility permission — it asks the first time, and everything
@@ -319,3 +325,66 @@ jobs:
             --title "v$VERSION" \
             --notes-file notes.md \
             $flags
+
+  # Points thienanblog/homebrew-tap at the release that was just published.
+  #
+  # It has to run after publish, not alongside it: the checksum in a cask is
+  # the checksum of one exact file, and the only file worth hashing is the
+  # archive attached to the release, which is what `brew install` downloads.
+  # Hashing a build made here instead would be hashing a different set of bytes
+  # -- two builds of one commit differ by timestamps and the signature alone --
+  # and Homebrew would reject the download it had itself been told to expect.
+  #
+  # Pre-releases are skipped. A tap has one cask per app and no notion of a
+  # channel, so publishing 0.6.0-rc.1 there would hand a release candidate to
+  # everyone running `brew upgrade`.
+  homebrew:
+    if: github.ref_type == 'tag' && needs.verify.outputs.prerelease == 'false'
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Opt-in on the presence of the token, the way signing is: a fork has no
+      # tap of its own to push to, and failing a release over a step that only
+      # this repository can perform would be worse than skipping it.
+      - name: Decide whether the cask can be pushed
+        id: tap
+        env:
+          TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::HOMEBREW_TAP_TOKEN is not set; the Homebrew cask was not updated."
+          fi
+
+      # A token of its own rather than the built-in GITHUB_TOKEN, which is
+      # scoped to this repository and cannot write to another one no matter
+      # what permissions are requested here.
+      - name: Check out the tap
+        if: steps.tap.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: thienanblog/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      # The same script a developer runs by hand, for the same reason the macOS
+      # build goes through package-macos.sh: a cask assembled a second way here
+      # is a cask that drifts from the one anybody can reproduce locally.
+      - name: Update and push the cask
+        if: steps.tap.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAP_DIR: tap
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          git -C tap config user.name "github-actions[bot]"
+          git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # A no-op when the cask already describes this version: the script
+          # skips the commit, and the push then has nothing to send.
+          ./scripts/update-cask.sh
+          git -C tap push
