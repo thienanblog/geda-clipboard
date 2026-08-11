@@ -18,16 +18,17 @@ var trayIcon []byte
 
 // appVersion is reported in the About panel. Override at build time with
 // -ldflags "-X main.appVersion=1.2.3".
-var appVersion = "0.3.0"
+var appVersion = "0.4.0"
 
 func main() {
 	app := NewApp(trayIcon)
 
 	err := wails.Run(&options.App{
 		Title: "Geda Clipboard",
-		// The window spans the list panel plus the transparent preview gutter.
-		Width:  app.PopupWidth() + app.PopupGutter(),
-		Height: app.PopupHeight(),
+		// The window spans the list panel, the transparent preview gutter and
+		// the margins the panel's shadow falls into.
+		Width:  app.PopupWidth() + app.PopupGutter() + 2*shadowSide,
+		Height: app.PopupHeight() + shadowTop + shadowBottom,
 
 		// The popup is a chromeless panel that floats above other windows and
 		// is shown/hidden rather than opened/closed.

@@ -55,12 +55,12 @@ macOS bundle and Windows executables attached. They are unsigned — there is no
 paid developer certificate behind this project — so each system asks once
 before it will run them:
 
-- **macOS** — unzip, move `geda-clipboard.app` to `/Applications`, then clear
+- **macOS** — unzip, move `Geda Clipboard.app` to `/Applications`, then clear
   the quarantine flag. Skip this and Gatekeeper claims the app is damaged,
   which is what an unsigned download looks like to it:
 
   ```bash
-  xattr -dr com.apple.quarantine /Applications/geda-clipboard.app
+  xattr -dr com.apple.quarantine "/Applications/Geda Clipboard.app"
   ```
 
 - **Windows** — unzip and run `Geda Clipboard.exe`. SmartScreen warns about an
@@ -75,7 +75,7 @@ never quarantined:
 ```bash
 git clone https://github.com/thienanblog/geda-clipboard.git
 cd geda-clipboard
-git checkout v0.2.0
+git checkout v0.4.0
 wails build
 ```
 
@@ -90,7 +90,7 @@ wails build
 The bundle is written to `build/bin/`. On macOS:
 
 ```bash
-open build/bin/geda-clipboard.app
+open "build/bin/Geda Clipboard.app"
 ```
 
 For development, with hot reload and a browser-accessible UI at

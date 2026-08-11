@@ -53,6 +53,18 @@ const (
 	// panelRadius matches --radius-panel in the stylesheet: the frosted window
 	// material is rounded to the same corners the panel draws for itself.
 	panelRadius = 12
+
+	// The native window shadow is unusable on a translucent WebView window (see
+	// internal/window), so the panel casts its own in CSS -- and a shadow has
+	// nowhere to fall unless the window is bigger than the panel. These are the
+	// transparent margins the window keeps for it, sized to what the shadow
+	// actually reaches: 0 8px 24px spreads half its blur, 12px, outwards, and
+	// 8px of that is spent moving down. Keeping the top margin as small as it
+	// can be is what lets the popup still sit close under the menu bar.
+	// Matches --shadow-top, --shadow-side and --shadow-bottom in the stylesheet.
+	shadowTop    = 8
+	shadowSide   = 16
+	shadowBottom = 24
 )
 
 // View identifies which screen the single window is currently showing.
@@ -149,6 +161,16 @@ func (a *App) OnStartup(ctx context.Context) {
 	}
 
 	a.settings.OnChange(a.onSettingsChanged)
+
+	// The login item records where the bundle is, so anything that moves the
+	// app -- a rename, a drag out of Downloads -- leaves it pointing at a path
+	// that no longer exists, and the app silently stops starting at login.
+	// Rewriting it on launch keeps it aimed at whatever is actually running.
+	if cfg.LaunchAtLogin {
+		if err := autostart.Set(true); err != nil {
+			log.Println("autostart:", err)
+		}
+	}
 
 	window.SetDockIconVisible(cfg.ShowDockIcon)
 
@@ -385,12 +407,12 @@ func (a *App) showPopupAt(anchor tray.Anchor) {
 	a.mu.Unlock()
 
 	wruntime.EventsEmit(a.ctx, "view:changed", string(ViewPopup))
-	wruntime.WindowSetSize(a.ctx, w+gutter, h)
+	wruntime.WindowSetSize(a.ctx, w+gutter+2*shadowSide, h+shadowTop+shadowBottom)
 	// The frosted material has to stop where the panel starts, or the gutter
-	// shows as a grey slab instead of being see-through.
-	window.SetPanelInset(gutter, panelRadius)
+	// and the shadow margins show as a grey slab instead of being see-through.
+	window.SetPanelInset(gutter+shadowSide, shadowTop, shadowSide, shadowBottom, panelRadius)
 
-	place, ok := popupPosition(cfg.PopupPlacement, anchor, w, h, gutter)
+	place, ok := popupPosition(cfg.PopupPlacement, anchor, w, h, gutter+shadowSide, shadowTop)
 	switch {
 	case !ok:
 		// Neither the pointer nor the tray icon could be located.
@@ -429,16 +451,21 @@ var (
 // pointer cannot be read on every platform. ok is false only when neither can
 // answer, which leaves the caller to centre the window.
 //
-// w and h are the size of the visible list panel; gutter is the transparent
-// strip the window carries to its left for the preview card. The placement is
-// computed for the panel and then shifted left by the gutter, so the list still
-// lands where the user aimed -- unless that would push the window off the left
-// edge, in which case the window stops there and the panel sits further right.
-func popupPosition(mode string, anchor tray.Anchor, w, h, gutter int) (placement, bool) {
+// w and h are the size of the visible list panel; insetX and insetY are how far
+// inside the window the panel's top-left corner sits -- the preview gutter plus
+// the side shadow margin across, the top shadow margin down. The placement is
+// computed for the panel and then shifted back by those insets, so the list
+// still lands where the user aimed -- unless that would push the window off the
+// top or left edge, in which case the window stops there and the panel sits
+// inset-deep in from where it was aimed.
+func popupPosition(mode string, anchor tray.Anchor, w, h, insetX, insetY int) (placement, bool) {
 	resolve := func(a tray.Anchor, at func(int, int) (int, int)) placement {
 		x, y := at(w, h)
-		if x -= gutter; x < 0 {
+		if x -= insetX; x < 0 {
 			x = 0
+		}
+		if y -= insetY; y < 0 {
+			y = 0
 		}
 		globalX, globalY := a.Global(x, y)
 		return placement{RelX: x, RelY: y, GlobalX: globalX, GlobalY: globalY}
@@ -737,9 +764,10 @@ func (a *App) ShowSettings() {
 	a.mu.Unlock()
 
 	wruntime.EventsEmit(a.ctx, "view:changed", string(ViewSettings))
-	wruntime.WindowSetSize(a.ctx, settingsWidth, settingsHeight)
-	// Preferences fill the window, so the material does too.
-	window.SetPanelInset(0, panelRadius)
+	wruntime.WindowSetSize(a.ctx, settingsWidth+2*shadowSide, settingsHeight+shadowTop+shadowBottom)
+	// Preferences fill the window bar the shadow margins, and so does the
+	// material.
+	window.SetPanelInset(shadowSide, shadowTop, shadowSide, shadowBottom, panelRadius)
 	wruntime.WindowCenter(a.ctx)
 	wruntime.WindowShow(a.ctx)
 }

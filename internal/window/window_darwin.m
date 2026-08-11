@@ -53,8 +53,8 @@ int gedaMoveWindow(int x, int y) {
 // The frosted material Wails installs is an NSVisualEffectView filling the
 // whole content view, which is what makes an otherwise transparent region of
 // the page show up as a grey slab. Shrinking that view to the panel is what
-// makes the preview gutter genuinely see-through.
-static void gedaSetPanelInsetOnMain(int left, int radius) {
+// makes the surrounding window genuinely see-through.
+static void gedaSetPanelInsetOnMain(int left, int top, int right, int bottom, int radius) {
     NSWindow *window = gedaMainWindow();
     if (window == nil) {
         return;
@@ -67,31 +67,43 @@ static void gedaSetPanelInsetOnMain(int left, int radius) {
         }
 
         NSRect bounds = [content bounds];
-        CGFloat width = bounds.size.width - left;
+        CGFloat width = bounds.size.width - left - right;
+        CGFloat height = bounds.size.height - top - bottom;
         if (width < 0) {
             width = 0;
         }
-        // Left margin fixed, size following the window: the mask Wails set
-        // keeps this frame correct across the resize into the settings view.
-        [view setFrame:NSMakeRect(left, 0, width, bounds.size.height)];
+        if (height < 0) {
+            height = 0;
+        }
+        // Margins fixed, size following the window: the mask Wails set keeps
+        // this frame correct across the resize into the settings view. AppKit
+        // measures from the bottom left, so the bottom inset is the origin.
+        [view setFrame:NSMakeRect(left, bottom, width, height)];
 
         [view setWantsLayer:YES];
         [[view layer] setCornerRadius:radius];
         [[view layer] setMasksToBounds:YES];
     }
 
-    // The window shadow is derived from the opaque parts of the window, so it
-    // has to be recomputed or it keeps the old, full-width shape.
+    // AppKit derives the window shadow from the alpha of the window's own
+    // backing, and on a translucent WebView window it gets that badly wrong:
+    // the result is a hard, crooked rim tracing wherever the page last had
+    // opaque pixels -- around the panel, around the preview card, and around
+    // shapes neither of them still has. There is no correcting it from here,
+    // because the page repaints without telling AppKit. So the window carries
+    // no shadow of its own; the panel and the card draw theirs in CSS, into
+    // the transparent margin the window keeps around them for the purpose.
+    [window setHasShadow:NO];
     [window invalidateShadow];
 }
 
-void gedaSetPanelInset(int left, int radius) {
+void gedaSetPanelInset(int left, int top, int right, int bottom, int radius) {
     if ([NSThread isMainThread]) {
-        gedaSetPanelInsetOnMain(left, radius);
+        gedaSetPanelInsetOnMain(left, top, right, bottom, radius);
         return;
     }
     dispatch_sync(dispatch_get_main_queue(), ^{
-        gedaSetPanelInsetOnMain(left, radius);
+        gedaSetPanelInsetOnMain(left, top, right, bottom, radius);
     });
 }
 
