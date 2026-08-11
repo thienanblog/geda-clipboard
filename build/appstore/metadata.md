@@ -140,19 +140,34 @@ a reviewer with VoiceOver on will find out in under a minute.
 
 | Feature | Declare | Why |
 | --- | --- | --- |
+| Reduced Motion | **Yes** | `prefers-reduced-motion: reduce` collapses every transition in the app, declared globally in `style.css` so it reaches the scoped component styles too. Deterministic from the stylesheet; no runtime testing needed to be sure of it. |
 | Dark Interface | **Yes** | The interface is drawn dark and legible against the system dark appearance. |
-| VoiceOver | **No** | Rows and footer actions are buttons and do announce, but the search field has no label, the list carries no listbox semantics, and the selected row is not announced as selected. Partial support is not support. |
-| Voice Control | **No** | Depends on the same missing labels. |
+| VoiceOver | **Test first** | The semantics are now correct — see below — but nobody has run VoiceOver against the app. Do not tick this box until somebody has. |
+| Voice Control | **Test first** | Rides on the same labels VoiceOver uses, so the same test settles it. |
 | Larger Text | **No** | Type sizes are fixed; the UI does not follow the system text size. |
-| Sufficient Contrast | **No** | Not measured. Do not claim it until the palette has been checked against 4.5:1. |
-| Reduced Motion | **No** | The popup and the detail card fade in without consulting `prefers-reduced-motion`. |
-| Differentiate Without Colour | **No** | Selection is shown by fill colour alone. |
+| Sufficient Contrast | **No** | Not measured. Do not claim it until every foreground/background pair in `style.css` has been checked against 4.5:1. |
+| Differentiate Without Colour | **No** | The selected row is still distinguished visually by fill colour alone. `aria-selected` fixes this for assistive technology, not for a sighted user who cannot separate the two colours. |
 | Captions / Audio Descriptions | N/A | The app plays no media. |
 
-These are worth fixing, and most are small: labelling the search field, giving
-the list `role="listbox"` with `aria-selected` on rows, and honouring
-`prefers-reduced-motion` would between them make VoiceOver and Reduced Motion
-honest claims.
+**What changed in 0.6.1.** The popup was previously unusable with a screen
+reader in the ways that matter: the search field had no accessible name, the
+history was an unlabelled pile of buttons with no listbox semantics, the
+highlighted row was not announced as selected, and an image row announced
+nothing at all because its only content was a thumbnail with an empty `alt`.
+All four are fixed. The field is a labelled `combobox` that publishes the
+highlight through `aria-activedescendant`, so the selection is spoken while the
+caret stays in the search; rows are `option`s carrying `aria-selected` and a
+description that names an image by its dimensions and every row by its source
+app.
+
+**The two-minute test before ticking VoiceOver or Voice Control.** Press
+`⌘F5`, open the popup, and check that: the search field announces itself; the
+arrow keys move the selection and each row is read out, including the image
+row; `⌘1` activates the right entry; the footer buttons and the whole of
+Preferences are reachable and announced. If all of that holds, the claim is
+honest. If any of it does not, fix it or leave the box unticked — Apple does
+not reject an app for supporting few of these, and does reject one for claiming
+support it lacks.
 
 ## 10. Pricing and Availability
 

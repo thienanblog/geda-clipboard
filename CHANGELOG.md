@@ -9,6 +9,21 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-11
+
+### Fixed
+
+- **The popup can be driven with a screen reader.** The search field had no
+  accessible name, the history was an unlabelled set of buttons with no list
+  semantics, the highlighted row was never announced as selected, and an image
+  row announced nothing at all — its only content was a thumbnail with an empty
+  `alt`. The field is now a labelled combobox that publishes the highlight
+  through `aria-activedescendant`, so the selection is spoken while the caret
+  stays where you are typing, and every row carries a description that names an
+  image by its size and each entry by the app it came from.
+- **Reduce Motion is honoured.** Turning it on in System Settings now collapses
+  the popup fade, the detail card's slide and the error toast.
+
 ## [0.6.0] - 2026-08-11
 
 ### Added
@@ -214,7 +229,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.3.0...v0.4.0
