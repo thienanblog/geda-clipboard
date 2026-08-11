@@ -21,6 +21,7 @@ const selected = ref(0)
 const searchEl = ref<HTMLInputElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
 const rowEls = ref<HTMLElement[]>([])
+const gutterEl = ref<HTMLElement | null>(null)
 const flyoutEl = ref<HTMLElement | null>(null)
 
 /** Index of the row under the cursor, or -1 when the mouse is away. */
@@ -127,16 +128,19 @@ function scrollSelectedIntoView(): void {
 }
 
 /** Lines the preview card up with the row it describes, then keeps it inside
- *  the window: a row near the bottom would otherwise push the card off screen.
+ *  the gutter: a row near the bottom would otherwise push the card off screen.
+ *  The card is placed within the gutter, which is itself inset from the window
+ *  by the shadow margins, so both ends of the sum are measured from there.
  *  Runs after the DOM settles, since the card's height depends on the entry. */
 function positionFlyout(): void {
   nextTick(() => {
     const row = rowEls.value[detailIndex.value]
     const card = flyoutEl.value
-    if (!row || !card) return
+    const gutterBox = gutterEl.value
+    if (!row || !card || !gutterBox) return
     const margin = 8
-    const top = row.getBoundingClientRect().top - 6
-    const lowest = Math.max(margin, window.innerHeight - card.offsetHeight - margin)
+    const top = row.getBoundingClientRect().top - gutterBox.getBoundingClientRect().top - 6
+    const lowest = Math.max(margin, gutterBox.clientHeight - card.offsetHeight - margin)
     flyoutTop.value = Math.max(margin, Math.min(top, lowest))
   })
 }
@@ -417,6 +421,7 @@ onUnmounted(() => {
          popup, the way clicking outside a menu does. -->
     <div
       v-if="gutter > 0"
+      ref="gutterEl"
       class="gutter"
       :style="{ width: gutter + 'px' }"
       @mousedown="keepSearchFocus"

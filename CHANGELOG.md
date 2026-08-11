@@ -7,6 +7,28 @@ All notable changes to Geda Clipboard are recorded here. The format follows
 While the major version is 0, the minor version is bumped for behavioural
 changes and the patch version for fixes.
 
+## [0.4.0] - 2026-08-11
+
+### Fixed
+
+- The crooked dark outline that framed the popup is gone. macOS derives a
+  window's shadow from the alpha of its backing, and on a translucent WebView
+  window it got that wrong: the result was a hard rim tracing wherever the page
+  last had opaque pixels, so it stood around the panel, around the preview card
+  and around shapes neither of them still had. The window now carries no shadow
+  of its own — the panel and the card draw theirs in CSS, into transparent
+  margins the window keeps around them.
+
+### Changed
+
+- The macOS bundle is now called `Geda Clipboard.app` rather than
+  `geda-clipboard.app`, matching the name the app has everywhere else. If
+  **Launch at login** was on, replacing the old bundle leaves the login item
+  pointing at a path that no longer exists; the app now rewrites it on every
+  launch, so starting the renamed app once repairs it.
+- Releases are titled with their tag alone — `v0.4.0` rather than
+  `Geda Clipboard 0.4.0`.
+
 ## [0.3.0] - 2026-08-11
 
 ### Added
@@ -118,7 +140,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thienanblog/geda-clipboard/releases/tag/v0.1.0

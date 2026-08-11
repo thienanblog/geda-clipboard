@@ -18,14 +18,17 @@ package window
 // shrink the window on any scaled display.
 func MoveTo(x, y int) bool { return moveTo(x, y) }
 
-// SetPanelInset says how much of the window, measured from its left edge, is
-// transparent gutter rather than panel, and how far the panel's own corners are
-// rounded.
+// SetPanelInset says how much of the window, on each side, is transparent
+// surround rather than panel, and how far the panel's own corners are rounded.
+// The surround is the preview gutter on the left plus the margin every side
+// keeps for the panel's drop shadow.
 //
 // macOS draws the frosted window material behind the entire window, so without
-// this the gutter shows up as a grey slab exactly where the popup is meant to
+// this the surround shows up as a grey slab exactly where the popup is meant to
 // be see-through. Platforms that have no window-wide material do nothing.
-func SetPanelInset(left, radius int) { setPanelInset(left, radius) }
+func SetPanelInset(left, top, right, bottom, radius int) {
+	setPanelInset(left, top, right, bottom, radius)
+}
 
 // SetDockIconVisible shows or hides the app's entry in the Dock.
 //

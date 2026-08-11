@@ -13,8 +13,8 @@ func moveTo(x, y int) bool {
 	return C.gedaMoveWindow(C.int(x), C.int(y)) != 0
 }
 
-func setPanelInset(left, radius int) {
-	C.gedaSetPanelInset(C.int(left), C.int(radius))
+func setPanelInset(left, top, right, bottom, radius int) {
+	C.gedaSetPanelInset(C.int(left), C.int(top), C.int(right), C.int(bottom), C.int(radius))
 }
 
 func setDockIconVisible(visible bool) {

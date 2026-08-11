@@ -111,7 +111,7 @@ func moveTo(x, y int) bool {
 
 // setPanelInset is a no-op on Windows: the window has no material of its own,
 // so a transparent region of the WebView is already see-through.
-func setPanelInset(left, radius int) {}
+func setPanelInset(left, top, right, bottom, radius int) {}
 
 // setDockIconVisible is a no-op on Windows, which has no Dock. The taskbar
 // button is tied to the window and so already comes and goes with the popup.

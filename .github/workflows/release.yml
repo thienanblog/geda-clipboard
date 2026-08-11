@@ -98,7 +98,7 @@ jobs:
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
           ditto -c -k --keepParent \
-            "build/bin/geda-clipboard.app" \
+            "build/bin/Geda Clipboard.app" \
             "geda-clipboard-$VERSION-${{ matrix.suffix }}.zip"
 
       - name: Archive the executable
@@ -152,10 +152,10 @@ jobs:
 
           These builds are unsigned, so both systems ask before running them.
 
-          **macOS** — unzip, move `geda-clipboard.app` to `/Applications`, then:
+          **macOS** — unzip, move `Geda Clipboard.app` to `/Applications`, then:
 
           ```bash
-          xattr -dr com.apple.quarantine /Applications/geda-clipboard.app
+          xattr -dr com.apple.quarantine "/Applications/Geda Clipboard.app"
           ```
 
           Without this, Gatekeeper reports the app as damaged. Geda has no
@@ -177,7 +177,10 @@ jobs:
             flags="--prerelease"
           fi
 
+          # The title is the tag and nothing else: "v0.4.1", not "Geda
+          # Clipboard v0.4.1". The release already sits under the project's
+          # name, so repeating it only makes the list harder to scan.
           gh release create "$GITHUB_REF_NAME" dist/*.zip \
-            --title "Geda Clipboard $VERSION" \
+            --title "v$VERSION" \
             --notes-file notes.md \
             $flags

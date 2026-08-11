@@ -32,6 +32,19 @@ function closeSettings(): void {
   void App.ShowPopupView()
 }
 
+/** The window is bigger than the panel by the shadow margins, so there is a rim
+ *  of transparent window around it. Clicking there dismisses the popup, the way
+ *  clicking outside a menu does, rather than swallowing the click. Preferences
+ *  are dismissed by their own controls, not by a stray click. */
+function onSurroundClick(): void {
+  if (view.value === 'popup') void App.HidePopup()
+}
+
+/** Mouse-down on the surround must not pull focus off the search field. */
+function keepFocus(event: MouseEvent): void {
+  event.preventDefault()
+}
+
 let disposers: Array<() => void> = []
 
 onMounted(async () => {
@@ -62,12 +75,23 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <PopupView v-if="view === 'popup'" @open-settings="openSettings" />
-  <SettingsView
-    v-else
-    :tab="settingsTab"
-    :env="env"
-    @close="closeSettings"
-    @tab="settingsTab = $event"
-  />
+  <div class="window" @mousedown.self="keepFocus" @click.self="onSurroundClick">
+    <PopupView v-if="view === 'popup'" @open-settings="openSettings" />
+    <SettingsView
+      v-else
+      :tab="settingsTab"
+      :env="env"
+      @close="closeSettings"
+      @tab="settingsTab = $event"
+    />
+  </div>
 </template>
+
+<style scoped>
+/* The panel is inset from the window on every side, leaving a transparent rim
+   for its own drop shadow to fall into. */
+.window {
+  height: 100%;
+  padding: var(--shadow-top) var(--shadow-side) var(--shadow-bottom);
+}
+</style>

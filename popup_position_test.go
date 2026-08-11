@@ -38,7 +38,7 @@ func TestPopupPositionAtCursor(t *testing.T) {
 	stubCursor(t, pointer, true)
 
 	// Both sources are available: cursor placement must ignore the tray icon.
-	p, ok := popupPosition(settings.PlacementCursor, menuBarIcon, 420, 520, 0)
+	p, ok := popupPosition(settings.PlacementCursor, menuBarIcon, 420, 520, 0, 0)
 
 	if !ok || p.RelX != 600 || p.RelY != 300 {
 		t.Errorf("relative = (%d, %d), ok = %v, want (600, 300), true", p.RelX, p.RelY, ok)
@@ -48,7 +48,7 @@ func TestPopupPositionAtCursor(t *testing.T) {
 func TestPopupPositionAtMenuBar(t *testing.T) {
 	stubCursor(t, pointer, true)
 
-	p, ok := popupPosition(settings.PlacementMenuBar, menuBarIcon, 420, 520, 0)
+	p, ok := popupPosition(settings.PlacementMenuBar, menuBarIcon, 420, 520, 0, 0)
 
 	// Centred on the icon: 500 + 12 - 210 = 302, flush under the menu bar.
 	if !ok || p.RelX != 302 || p.RelY != 0 {
@@ -61,7 +61,7 @@ func TestPopupPositionAtMenuBar(t *testing.T) {
 func TestPopupPositionGlobalMatchesRelativeOnPrimary(t *testing.T) {
 	stubCursor(t, pointer, true)
 
-	p, ok := popupPosition(settings.PlacementCursor, tray.Anchor{}, 420, 520, 0)
+	p, ok := popupPosition(settings.PlacementCursor, tray.Anchor{}, 420, 520, 0, 0)
 
 	if !ok || p.GlobalX != p.RelX || p.GlobalY != p.RelY {
 		t.Errorf("global = (%d, %d), relative = (%d, %d), want them equal",
@@ -74,7 +74,7 @@ func TestPopupPositionGlobalMatchesRelativeOnPrimary(t *testing.T) {
 func TestPopupPositionGlobalOnSecondDisplay(t *testing.T) {
 	stubCursor(t, pointerOnSecondDisplay, true)
 
-	p, ok := popupPosition(settings.PlacementCursor, menuBarIcon, 420, 520, 0)
+	p, ok := popupPosition(settings.PlacementCursor, menuBarIcon, 420, 520, 0, 0)
 
 	if !ok {
 		t.Fatal("no position resolved")
@@ -92,7 +92,7 @@ func TestPopupPositionGlobalOnSecondDisplay(t *testing.T) {
 func TestPopupPositionMenuBarFallsBackToCursor(t *testing.T) {
 	stubCursor(t, pointer, true)
 
-	p, ok := popupPosition(settings.PlacementMenuBar, tray.Anchor{}, 420, 520, 0)
+	p, ok := popupPosition(settings.PlacementMenuBar, tray.Anchor{}, 420, 520, 0, 0)
 
 	if !ok || p.RelX != 600 || p.RelY != 300 {
 		t.Errorf("relative = (%d, %d), ok = %v, want (600, 300), true", p.RelX, p.RelY, ok)
@@ -102,37 +102,41 @@ func TestPopupPositionMenuBarFallsBackToCursor(t *testing.T) {
 func TestPopupPositionCursorFallsBackToMenuBar(t *testing.T) {
 	stubCursor(t, tray.Anchor{}, false)
 
-	p, ok := popupPosition(settings.PlacementCursor, menuBarIcon, 420, 520, 0)
+	p, ok := popupPosition(settings.PlacementCursor, menuBarIcon, 420, 520, 0, 0)
 
 	if !ok || p.RelX != 302 || p.RelY != 0 {
 		t.Errorf("relative = (%d, %d), ok = %v, want (302, 0), true", p.RelX, p.RelY, ok)
 	}
 }
 
-// The preview gutter is transparent window, not chrome: the window starts that
-// much further left so the list panel still opens at the pointer.
-func TestPopupPositionShiftsLeftByTheGutter(t *testing.T) {
+// The preview gutter and the shadow margins are transparent window, not chrome:
+// the window starts that much further left and up so the list panel itself
+// still opens at the pointer.
+func TestPopupPositionShiftsBackByTheInsets(t *testing.T) {
 	stubCursor(t, pointer, true)
 
-	p, ok := popupPosition(settings.PlacementCursor, tray.Anchor{}, 420, 520, 300)
+	p, ok := popupPosition(settings.PlacementCursor, tray.Anchor{}, 420, 520, 316, 8)
 
-	if !ok || p.RelX != 300 || p.RelY != 300 {
-		t.Errorf("relative = (%d, %d), ok = %v, want (300, 300), true", p.RelX, p.RelY, ok)
+	if !ok || p.RelX != 284 || p.RelY != 292 {
+		t.Errorf("relative = (%d, %d), ok = %v, want (284, 292), true", p.RelX, p.RelY, ok)
 	}
 }
 
-// Close to the left edge there is no room for the gutter; the window stops at
-// the edge rather than hanging off it.
-func TestPopupPositionClampsGutterAtLeftEdge(t *testing.T) {
+// Close to an edge there is no room for the insets; the window stops at the
+// edge rather than hanging off it, which leaves the panel inset-deep in from
+// where it was aimed. That is why the top inset is kept small: a popup
+// anchored to the tray icon lands here every time, and the inset is the whole
+// gap between it and the menu bar.
+func TestPopupPositionClampsInsetsAtTheEdges(t *testing.T) {
 	stubCursor(t, tray.Anchor{
-		Icon: tray.Rect{X: 40, Y: 100},
+		Icon: tray.Rect{X: 40, Y: 4},
 		Work: tray.Rect{W: 1440, H: 900},
 	}, true)
 
-	p, ok := popupPosition(settings.PlacementCursor, tray.Anchor{}, 420, 520, 300)
+	p, ok := popupPosition(settings.PlacementCursor, tray.Anchor{}, 420, 520, 316, 8)
 
-	if !ok || p.RelX != 0 {
-		t.Errorf("relative x = %d, ok = %v, want 0, true", p.RelX, ok)
+	if !ok || p.RelX != 0 || p.RelY != 0 {
+		t.Errorf("relative = (%d, %d), ok = %v, want (0, 0), true", p.RelX, p.RelY, ok)
 	}
 }
 
@@ -141,7 +145,7 @@ func TestPopupPositionWithoutAnySource(t *testing.T) {
 	stubCursor(t, tray.Anchor{}, false)
 
 	for _, mode := range []string{settings.PlacementCursor, settings.PlacementMenuBar} {
-		if _, ok := popupPosition(mode, tray.Anchor{}, 420, 520, 0); ok {
+		if _, ok := popupPosition(mode, tray.Anchor{}, 420, 520, 0, 0); ok {
 			t.Errorf("mode %q reported a position with no source available", mode)
 		}
 	}
