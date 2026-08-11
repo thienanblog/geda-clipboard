@@ -7,9 +7,9 @@ All notable changes to Geda Clipboard are recorded here. The format follows
 While the major version is 0, the minor version is bumped for behavioural
 changes and the patch version for fixes.
 
-## [0.4.0] - 2026-08-11
+## [0.5.0] - 2026-08-11
 
-### Upgrading from 0.3.0 on macOS
+### Upgrading from 0.4.0 or earlier on macOS
 
 Earlier versions turned on **Launch at login** by writing a LaunchAgent into
 `~/Library/LaunchAgents`. This one is sandboxed and cannot reach that folder,
@@ -48,10 +48,8 @@ before first launch to keep it.
 - The app runs in the **App Sandbox**. Clipboard history, the global shortcut
   and pasting back into the previous app all work as before; only the storage
   location moves, into the app's container.
-- The macOS bundle is now called `Geda Clipboard.app` rather than
-  `geda-clipboard.app`, matching the name the app has everywhere else.
-- Releases are titled with their tag alone — `v0.4.0` rather than
-  `Geda Clipboard 0.4.0`.
+
+## [0.4.0] - 2026-08-11
 
 ### Fixed
 
@@ -62,6 +60,16 @@ before first launch to keep it.
   and around shapes neither of them still had. The window now carries no shadow
   of its own — the panel and the card draw theirs in CSS, into transparent
   margins the window keeps around them.
+
+### Changed
+
+- The macOS bundle is now called `Geda Clipboard.app` rather than
+  `geda-clipboard.app`, matching the name the app has everywhere else. If
+  **Launch at login** was on, replacing the old bundle leaves the login item
+  pointing at a path that no longer exists; the app now rewrites it on every
+  launch, so starting the renamed app once repairs it.
+- Releases are titled with their tag alone — `v0.4.0` rather than
+  `Geda Clipboard 0.4.0`.
 
 ## [0.3.0] - 2026-08-11
 
@@ -174,7 +182,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.1.0...v0.2.0
