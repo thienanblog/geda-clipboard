@@ -24,6 +24,12 @@
         <string>13.0</string>
         <key>LSUIElement</key>
         <true/>
+        <!-- App Store Connect refuses an upload that does not declare one, and
+             says so only after the notarization-style processing pass, long
+             after Transporter has reported success. It also has to agree with
+             the category chosen in App Store Connect, which is Productivity. -->
+        <key>LSApplicationCategoryType</key>
+        <string>public.app-category.productivity</string>
         <key>NSHighResolutionCapable</key>
         <string>true</string>
         <key>NSHumanReadableCopyright</key>
