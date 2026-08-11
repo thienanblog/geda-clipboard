@@ -135,6 +135,17 @@ case "$signed_entitlements" in
     exit 1
     ;;
 esac
+# WKWebView's helper processes will not launch under the sandbox without this,
+# and the bundle that results looks healthy from the outside: it launches, it
+# captures the clipboard, and its popup is an empty panel. Nothing downstream
+# catches that, so check the signature says what the entitlements file says.
+case "$signed_entitlements" in
+  *network.client*) ;;
+  *)
+    echo "The outgoing network entitlement is missing; the popup will be blank." >&2
+    exit 1
+    ;;
+esac
 
 echo "==> Building the installer package"
 rm -f "$pkg"

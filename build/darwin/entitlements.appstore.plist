@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Entitlements for the Mac App Store build. Four keys, and every one of them
+  Entitlements for the Mac App Store build. Five keys, and every one of them
   earns its place.
 
   The App Store build is compiled with no build tag at all, which is what
@@ -14,10 +14,6 @@
   read on guideline 2.4.5. There is no version of this file that both ships
   Sparkle and survives review.
 
-  No network entitlement either. Without Sparkle the app opens no sockets, and
-  an entitlement it does not use is a question at review it does not need to
-  answer.
-
   Keep double hyphens out of these comments; see entitlements.plist.
 -->
 <plist version="1.0">
@@ -26,6 +22,28 @@
     <true/>
 
     <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!-- WKWebView refuses to run without this in a sandboxed app, even though
+         the frontend is embedded in the binary and served over the wails://
+         custom scheme, and even though this build opens no sockets of its own.
+         WebKit's helper processes are launched by the host and inherit its
+         sandbox; the Networking process cannot start without outgoing
+         connections, and WebContent then refuses too:
+
+           WebContent[...] Application does not have permission to communicate
+           with network resources. rc=1 : errno=34
+           WebProcessProxy::processDidTerminateOrFailedToLaunch: reason=Crash
+
+         Nothing else reports a problem. The app launches, the tray icon
+         appears, clipboard capture and its notifications keep working, and the
+         popup opens as an empty panel because the web view behind it never
+         rendered a frame. Only a sandboxed run shows it, which is why the
+         Developer ID build, which carries this key for Sparkle, never did.
+
+         App Privacy is unaffected: no data leaves the machine. See
+         build/appstore/metadata.md, which says so in the terms review asks. -->
+    <key>com.apple.security.network.client</key>
     <true/>
 
     <!-- Both must match the provisioning profile exactly, team prefix and all,

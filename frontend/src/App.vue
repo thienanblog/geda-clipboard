@@ -27,9 +27,13 @@ function openSettings(tab: 'general' | 'about'): void {
   void App.ShowSettings()
 }
 
+/** Closing preferences dismisses the window instead of falling back to the
+ *  list. Reopening the popup is a tray click or hotkey away, and showing it
+ *  unasked leaves a panel on screen the user did not ask for. The switch back
+ *  to the list is left to the Go side, which makes it once the window is off
+ *  screen; doing it here would flash the list on the way out. */
 function closeSettings(): void {
-  view.value = 'popup'
-  void App.ShowPopupView()
+  void App.HidePopup()
 }
 
 /** The window is bigger than the panel by the shadow margins, so there is a rim

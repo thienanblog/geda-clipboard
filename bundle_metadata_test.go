@@ -71,9 +71,8 @@ func TestInfoPlistDeclaresAppStoreKeys(t *testing.T) {
 	}
 }
 
-// The App Store build must not ask for anything Sparkle needs. A temporary
-// exception whose purpose is self-updating reads as guideline 2.4.5, and the
-// network entitlement is a question at review this app has no reason to answer.
+// The App Store build must not ask for anything Sparkle needs: a temporary
+// exception whose purpose is self-updating reads as guideline 2.4.5.
 func TestAppStoreEntitlementsCarryNoUpdater(t *testing.T) {
 	raw, err := os.ReadFile("build/darwin/entitlements.appstore.plist")
 	if err != nil {
@@ -81,19 +80,31 @@ func TestAppStoreEntitlementsCarryNoUpdater(t *testing.T) {
 	}
 	entitlements := string(raw)
 
-	for _, forbidden := range []string{
-		"temporary-exception",
-		"com.apple.security.network.client",
-	} {
-		// Comments in this file discuss both by name on purpose, so only the
-		// declared keys count.
-		if strings.Contains(stripXMLComments(entitlements), forbidden) {
-			t.Errorf("entitlements.appstore.plist declares %s, which the App Store build must not carry", forbidden)
-		}
+	// The comments discuss Sparkle by name on purpose, so only declared keys
+	// count.
+	if strings.Contains(stripXMLComments(entitlements), "temporary-exception") {
+		t.Error("entitlements.appstore.plist declares a temporary exception, which the App Store build must not carry")
 	}
 
 	if !strings.Contains(entitlements, "<key>com.apple.security.app-sandbox</key>") {
 		t.Error("entitlements.appstore.plist must declare the sandbox")
+	}
+}
+
+// This entitlement used to be forbidden here, on the reasoning that a build
+// with no updater opens no sockets and should answer no question at review it
+// does not have to. It is required: WKWebView's helper processes will not
+// launch under the sandbox without it, and the popup renders nothing. The
+// failure is invisible outside a sandboxed run, so the requirement is pinned
+// rather than left to the comment in the file.
+func TestAppStoreEntitlementsAllowWebKitToLaunch(t *testing.T) {
+	raw, err := os.ReadFile("build/darwin/entitlements.appstore.plist")
+	if err != nil {
+		t.Fatalf("read entitlements.appstore.plist: %v", err)
+	}
+
+	if !strings.Contains(stripXMLComments(string(raw)), "<key>com.apple.security.network.client</key>") {
+		t.Error("entitlements.appstore.plist must declare com.apple.security.network.client or the popup opens empty")
 	}
 }
 
