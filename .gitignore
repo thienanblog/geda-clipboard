@@ -10,3 +10,23 @@ frontend/package.json.md5
 
 # macOS
 .DS_Store
+
+# Signing and update material. None of this belongs in the repository, and a
+# public one makes the mistake unrecoverable: a leaked .p12 or App Store
+# Connect key has to be revoked, and a leaked Sparkle private key means every
+# installed copy can be handed a forged update. Matched by extension rather
+# than by path so a stray copy anywhere is caught too.
+*.p12
+*.pem
+*.cer
+*.certSigningRequest
+AuthKey_*.p8
+*.provisionprofile
+*.mobileprovision
+*sparkle*private*
+*private*key*
+
+# Fetched by scripts/fetch-sparkle.sh, not tracked: build inputs, and a binary
+# framework in git history is a burden forever.
+build/darwin/Frameworks/
+build/darwin/sparkle-bin/

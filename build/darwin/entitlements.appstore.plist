@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the Mac App Store build. Four keys, and every one of them
+  earns its place.
+
+  The App Store build is compiled with -tags appstore, which leaves Sparkle out
+  of the binary entirely, so none of Sparkle's requirements appear here. That
+  is deliberate and load-bearing: com.apple.security.temporary-exception.* in a
+  submission is scrutinised closely, and a temporary exception whose purpose is
+  self-updating is a direct read on guideline 2.4.5. There is no version of
+  this file that both ships Sparkle and survives review.
+
+  No network entitlement either. Without Sparkle the app opens no sockets, and
+  an entitlement it does not use is a question at review it does not need to
+  answer.
+
+  Keep double hyphens out of these comments; see entitlements.plist.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!-- Both must match the provisioning profile exactly, team prefix and all,
+         or the upload is rejected before review ever sees it. Replace 88BTYX26S4
+         with the Team ID from developer.apple.com Membership details. -->
+    <key>com.apple.application-identifier</key>
+    <string>88BTYX26S4.com.geda.clipboard</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>88BTYX26S4</string>
+</dict>
+</plist>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the Developer ID build published on GitHub: sandboxed like
+  the App Store build, under the hardened runtime, and carrying the two things
+  Sparkle needs to update a sandboxed app.
+
+  Not present, on purpose:
+    * anything for NSPasteboard. No such entitlement exists. The sandbox does
+      not gate the general pasteboard, so clipboard monitoring needs nothing
+      declared here.
+    * apple-events. The paste-back path posts a CGEvent; it does not script
+      other applications.
+    * application-identifier and team-identifier. Those belong to a
+      provisioning profile this build does not carry.
+
+  Keep double hyphens out of these comments. XML forbids them inside a comment
+  and the parser codesign hands entitlements to enforces it, then signs anyway
+  with neither the entitlements nor the hardened runtime and exits zero. The
+  release workflow reads both back rather than trusting that exit status.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- WKWebView's JavaScript engine. Without this the frontend either fails
+         to start or falls back to an interpreter and crawls. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!-- Sparkle fetches the appcast and downloads the update. Sparkle ships a
+         Downloader XPC Service that exists to avoid exactly this entitlement,
+         but its own documentation advises against it: it pulls in a deprecated
+         WebView for release notes and misbehaves with external content. One
+         entitlement is the cheaper trade. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- How a sandboxed app reaches Sparkle's installer tools. The suffixes
+         are Sparkle's own convention; the prefix must be the bundle
+         identifier, which is why these are spelled out rather than templated:
+         a Wails build has no Xcode to expand $(PRODUCT_BUNDLE_IDENTIFIER). -->
+    <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+    <array>
+        <string>com.geda.clipboard-spks</string>
+        <string>com.geda.clipboard-spki</string>
+    </array>
+</dict>
+</plist>
