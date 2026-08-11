@@ -240,13 +240,13 @@ build number does not reopen it. `scripts/package-appstore.sh` runs
 - For a new marketing version, `BUILD_NUMBER` may start again at 1.
 
 ```bash
-AC_API_KEY_P8=/Users/anvu/simple-projects/geda-secrets/AuthKey_X8W6RC9J9P.p8 \
-AC_API_KEY_ID=X8W6RC9J9P \
+AC_API_KEY_P8=~/path/AuthKey_XXXXXXXXXX.p8 \
+AC_API_KEY_ID=XXXXXXXXXX \
 AC_API_ISSUER_ID=<issuer uuid from Users and Access, Integrations> \
 BUILD_NUMBER=1 \
 APP_IDENTITY="3rd Party Mac Developer Application: An Vu (88BTYX26S4)" \
 INSTALLER_IDENTITY="3rd Party Mac Developer Installer: An Vu (88BTYX26S4)" \
-PROFILE=/Users/anvu/simple-projects/geda-secrets/Geda_Clipboard.provisionprofile \
+PROFILE=~/path/Geda_Clipboard_MAS.provisionprofile \
   ./scripts/package-appstore.sh
 ```
 

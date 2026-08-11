@@ -14,7 +14,7 @@ permissions:
 
 env:
   GO_VERSION: "1.25"
-  NODE_VERSION: "20"
+  NODE_VERSION: "24"
   WAILS_VERSION: v2.12.0
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
       prerelease: ${{ steps.version.outputs.prerelease }}
       signed: ${{ steps.signing.outputs.signed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Resolve and check the version
         id: version
@@ -89,13 +89,13 @@ jobs:
             platform: windows/arm64
             suffix: windows-arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -121,6 +121,8 @@ jobs:
           CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
         run: |
+          umask 077
+
           # security import cannot read a .p12 that was exported without one:
           # it fails MAC verification whether the empty password is passed or
           # the flag is left off entirely, and reports it as "wrong password?",
@@ -173,6 +175,8 @@ jobs:
           API_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
           API_ISSUER_ID: ${{ secrets.AC_API_ISSUER_ID }}
         run: |
+          umask 077
+
           app="build/bin/Geda Clipboard.app"
           key="$RUNNER_TEMP/AuthKey.p8"
           printf '%s' "$API_KEY" | base64 --decode > "$key"
@@ -199,6 +203,16 @@ jobs:
           # and it should read "source=Notarized Developer ID".
           spctl --assess --verbose=4 --type execute "$app"
 
+      # Keep cleanup independent from successful import or notarization. The
+      # hosted runner is ephemeral, but failed commands should not decide how
+      # long raw credentials or an unlocked signing keychain remain readable.
+      - name: Remove signing credentials
+        if: always() && runner.os == 'macOS' && needs.verify.outputs.signed == 'true'
+        run: |
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/AuthKey.p8" \
+            "$RUNNER_TEMP/notarize.zip"
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" >/dev/null 2>&1 || true
+
       # ditto rather than zip: a .app is a bundle of symlinks and permission
       # bits that plain zip flattens, which breaks the signature and leaves
       # macOS refusing to open what it unpacks.
@@ -220,7 +234,7 @@ jobs:
           Compress-Archive -Path "build/bin/Geda Clipboard.exe" `
             -DestinationPath "geda-clipboard-$env:VERSION-${{ matrix.suffix }}.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: geda-clipboard-${{ matrix.suffix }}
           path: "*.zip"
@@ -233,9 +247,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: dist
           merge-multiple: true
@@ -343,7 +357,7 @@ jobs:
     needs: [verify, publish]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # Opt-in on the presence of the token, the way signing is: a fork has no
       # tap of its own to push to, and failing a release over a step that only
@@ -365,7 +379,7 @@ jobs:
       # what permissions are requested here.
       - name: Check out the tap
         if: steps.tap.outputs.enabled == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: thienanblog/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}

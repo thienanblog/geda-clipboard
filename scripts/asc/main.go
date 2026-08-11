@@ -21,7 +21,7 @@
 //
 //	AC_API_KEY_P8         path to the .p8, or
 //	AC_API_KEY_P8_BASE64  its base64 contents, as CI holds it
-//	AC_API_KEY_ID         the key ID, the X8W6RC9J9P in AuthKey_X8W6RC9J9P.p8
+//	AC_API_KEY_ID         the key ID, the XXXXXXXXXX in AuthKey_XXXXXXXXXX.p8
 //	AC_API_ISSUER_ID      the issuer UUID from Users and Access, Integrations
 //
 // Usage:

@@ -13,7 +13,7 @@
 
 ## Environment and commands
 
-- CI uses Go 1.25, Node 20, Wails v2.12.0, and the npm lockfile in `frontend/`.
+- CI uses Go 1.25, Node 24, Wails v2.12.0, and the npm lockfile in `frontend/`.
 - Install frontend dependencies with `cd frontend && npm ci`.
 - Run the application with `wails dev`; the frontend is also available at
   `http://localhost:34115` during development.
