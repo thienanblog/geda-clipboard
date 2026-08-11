@@ -38,10 +38,19 @@ were working in.
   ignore list.
 - **Global hotkey** (default `⇧⌘V` on macOS, `Ctrl+Shift+V` on Windows),
   rebindable in preferences.
-- **Launch at login** via a LaunchAgent (macOS) or the `Run` registry key
-  (Windows).
+- **Launch at login** via `SMAppService` (macOS), which registers the bundle
+  with the system and shows up under Login Items in System Settings, or the
+  `Run` registry key (Windows).
 
 ## Requirements
+
+To run:
+
+- macOS 13 or later. Launch at login goes through `SMAppService`, and the app
+  is sandboxed, which rules out the LaunchAgent that earlier versions wrote.
+- Windows 10 or later.
+
+To build:
 
 - Go 1.25+ (see `go.mod`)
 - Node 18+
@@ -159,7 +168,9 @@ above.
 
 ## Where data lives
 
-- macOS: `~/Library/Application Support/geda-clipboard/`
+- macOS: `~/Library/Containers/com.geda.clipboard/Data/Library/Application Support/geda-clipboard/`.
+  The app is sandboxed, so macOS redirects it there; the code still asks for
+  `~/Library/Application Support`, which is where an unsandboxed build writes.
 - Windows: `%AppData%\geda-clipboard\`
 
 ```

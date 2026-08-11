@@ -17,8 +17,10 @@
         <string>{{.Info.ProductVersion}}</string>
         <key>CFBundleIconFile</key>
         <string>iconfile</string>
+        <!-- Kept in step with Info.plist: wails dev should refuse to run
+             anywhere the shipped bundle would. -->
         <key>LSMinimumSystemVersion</key>
-        <string>10.13.0</string>
+        <string>13.0</string>
         <key>LSUIElement</key>
         <true/>
         <key>NSHighResolutionCapable</key>

@@ -17,14 +17,22 @@
         <string>{{.Info.ProductVersion}}</string>
         <key>CFBundleIconFile</key>
         <string>iconfile</string>
+        <!-- 13.0 because launch at login goes through SMAppService, which is
+             macOS 13 and later. The sandbox denies the LaunchAgent plist this
+             used to write, so there is no older path left to fall back to. -->
         <key>LSMinimumSystemVersion</key>
-        <string>10.13.0</string>
+        <string>13.0</string>
         <key>LSUIElement</key>
         <true/>
         <key>NSHighResolutionCapable</key>
         <string>true</string>
         <key>NSHumanReadableCopyright</key>
         <string>{{.Info.Copyright}}</string>
+        <!-- The app ships no cryptography of its own and opens no sockets.
+             Declaring that here answers the export compliance question once,
+             instead of on every upload. -->
+        <key>ITSAppUsesNonExemptEncryption</key>
+        <false/>
         {{if .Info.FileAssociations}}
         <key>CFBundleDocumentTypes</key>
         <array>
