@@ -79,6 +79,25 @@ function accelerator(index: number): string {
   return index < 9 ? `${sym.cmd} ${index + 1}` : ''
 }
 
+/** What a screen reader reads for a row.
+ *
+ *  Not the visible label: that one is truncated to whatever fits the panel,
+ *  and an image row has no text in it at all -- the cell is a thumbnail with
+ *  an empty alt, so without this the row announces as nothing but its number.
+ *  The pinned state is spoken too, since the pin is a glyph and aria-selected
+ *  covers only the highlight. */
+function rowDescription(item: store.Item): string {
+  const parts: string[] = []
+  if (item.pinned) parts.push('Pinned')
+  parts.push(
+    item.kind === 'image'
+      ? `Image, ${item.imageW} by ${item.imageH} pixels`
+      : rowLabel(item, 120),
+  )
+  if (item.sourceApp) parts.push(`from ${item.sourceApp}`)
+  return parts.join(', ')
+}
+
 async function reload(): Promise<void> {
   try {
     items.value = await App.List(query.value)
@@ -450,6 +469,11 @@ onUnmounted(() => {
               fill="currentColor"
             />
           </svg>
+          <!-- The field keeps focus the whole time the popup is open and the
+               arrow keys drive the list underneath it, which is the combobox
+               pattern: the selection is published through aria-activedescendant
+               rather than by moving focus, so a screen reader announces the
+               highlighted row without the caret ever leaving the search. -->
           <input
             ref="searchEl"
             v-model="query"
@@ -457,24 +481,41 @@ onUnmounted(() => {
             placeholder="type to search…"
             spellcheck="false"
             autocomplete="off"
+            role="combobox"
+            aria-label="Search clipboard history"
+            aria-controls="geda-history"
+            aria-expanded="true"
+            :aria-activedescendant="empty ? undefined : `geda-row-${selected}`"
           />
         </div>
       </header>
 
       <div class="hairline" />
 
-      <div ref="listEl" class="list scroll" @mouseleave="onListLeave">
-        <p v-if="empty" class="empty">
+      <div
+        id="geda-history"
+        ref="listEl"
+        class="list scroll"
+        role="listbox"
+        aria-label="Clipboard history"
+        @mouseleave="onListLeave"
+      >
+        <p v-if="empty" class="empty" role="status">
           {{ query ? 'No matching entries' : 'Clipboard history is empty' }}
         </p>
 
         <button
           v-for="(item, index) in items"
+          :id="`geda-row-${index}`"
           :key="item.id"
           :ref="(el) => { if (el) rowEls[index] = el as HTMLElement }"
           class="row"
           :class="{ 'row-selected': index === selected }"
           type="button"
+          role="option"
+          :aria-selected="index === selected"
+          :aria-label="rowDescription(item)"
+          tabindex="-1"
           @mousedown="keepSearchFocus"
           @click="activate(index)"
           @mouseenter="onRowEnter(index)"

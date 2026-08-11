@@ -74,6 +74,23 @@
   box-sizing: border-box;
 }
 
+/* Reduce Motion, honoured globally rather than per component. The popup fades
+   in, the detail card slides out of the gutter and the error toast fades, and
+   all three are declared in scoped component styles that a rule in any one of
+   them could not reach. Near-zero rather than `none` so transitionend still
+   fires and Vue's <transition> does not wait for an event that never comes,
+   leaving the element stuck in its enter class. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 html,
 body,
 #app {

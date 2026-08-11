@@ -3,7 +3,7 @@
 [![CI](https://github.com/thienanblog/geda-clipboard/actions/workflows/ci.yml/badge.svg)](https://github.com/thienanblog/geda-clipboard/actions/workflows/ci.yml)
 
 A menu bar / system tray clipboard manager for macOS and Windows, built with Go
-and [Wails v2](https://wails.io). Inspired by [Maccy](https://github.com/p0deje/Maccy).
+and [Wails v2](https://wails.io).
 
 It keeps a searchable history of what you copy, **posts a notification each time
 you copy or paste**, and pastes any earlier entry straight back into the app you
@@ -95,9 +95,13 @@ since a locally built binary is never marked as downloaded:
 ```bash
 git clone https://github.com/thienanblog/geda-clipboard.git
 cd geda-clipboard
-git checkout v0.4.0
 wails build
 ```
+
+That builds whatever is on `main`. For the last released version instead,
+`git checkout` the newest tag from the
+[releases page](https://github.com/thienanblog/geda-clipboard/releases) first —
+naming one here only guarantees it is out of date by the next release.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
