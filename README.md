@@ -60,26 +60,22 @@ To build:
 ## Install
 
 Every [release](https://github.com/thienanblog/geda-clipboard/releases) has a
-macOS bundle and Windows executables attached. They are unsigned — there is no
-paid developer certificate behind this project — so each system asks once
-before it will run them:
+macOS bundle and Windows executables attached.
 
-- **macOS** — unzip, move `Geda Clipboard.app` to `/Applications`, then clear
-  the quarantine flag. Skip this and Gatekeeper claims the app is damaged,
-  which is what an unsigned download looks like to it:
+- **macOS** — unzip, move `Geda Clipboard.app` to `/Applications`, and open it.
+  The build is signed with a Developer ID certificate and notarized by Apple,
+  so Gatekeeper lets it through with no extra step. It checks for its own
+  updates through [Sparkle](https://sparkle-project.org).
 
-  ```bash
-  xattr -dr com.apple.quarantine "/Applications/Geda Clipboard.app"
-  ```
-
-- **Windows** — unzip and run `Geda Clipboard.exe`. SmartScreen warns about an
-  unknown publisher: choose **More info › Run anyway**.
+- **Windows** — unzip and run `Geda Clipboard.exe`. This build is not signed,
+  so SmartScreen warns about an unknown publisher: choose
+  **More info › Run anyway**.
 
 Neither app opens a window: look for the icon in the menu bar or the
 notification area.
 
-Building from source avoids both prompts, since a locally built binary is
-never quarantined:
+Building from source is also fine, and skips the SmartScreen prompt on Windows
+since a locally built binary is never marked as downloaded:
 
 ```bash
 git clone https://github.com/thienanblog/geda-clipboard.git
