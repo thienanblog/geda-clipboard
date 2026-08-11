@@ -21,6 +21,7 @@ import (
 	"geda-clipboard/internal/settings"
 	"geda-clipboard/internal/store"
 	"geda-clipboard/internal/tray"
+	"geda-clipboard/internal/updater"
 	"geda-clipboard/internal/window"
 )
 
@@ -162,10 +163,11 @@ func (a *App) OnStartup(ctx context.Context) {
 
 	a.settings.OnChange(a.onSettingsChanged)
 
-	// The login item records where the bundle is, so anything that moves the
-	// app -- a rename, a drag out of Downloads -- leaves it pointing at a path
-	// that no longer exists, and the app silently stops starting at login.
-	// Rewriting it on launch keeps it aimed at whatever is actually running.
+	// SMAppService registers the bundle by identity rather than by path, so
+	// this no longer has to repair a login item that a rename or a move had
+	// left pointing at nothing. It stays because registration is per-user
+	// state that lives outside the app: re-asserting the preference on launch
+	// is what makes the two agree again after the app is reinstalled.
 	if cfg.LaunchAtLogin {
 		if err := autostart.Set(true); err != nil {
 			log.Println("autostart:", err)
@@ -175,7 +177,20 @@ func (a *App) OnStartup(ctx context.Context) {
 	window.SetDockIconVisible(cfg.ShowDockIcon)
 
 	notify.RequestPermission()
+
+	// A no-op in the App Store build, where no updater is compiled in. Sparkle
+	// asks before its first automatic check, so this does not reach the
+	// network without the user having agreed to it.
+	updater.Start()
 }
+
+// UpdatesSupported reports whether this build can check for updates. The App
+// Store build cannot, and updates there arrive through the App Store instead;
+// the frontend hides the control rather than offering one that does nothing.
+func (a *App) UpdatesSupported() bool { return updater.Available() }
+
+// CheckForUpdates runs a user-initiated check, showing Sparkle's own UI.
+func (a *App) CheckForUpdates() { updater.CheckNow() }
 
 // OnShutdown releases resources.
 func (a *App) OnShutdown(ctx context.Context) {

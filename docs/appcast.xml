@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The live Sparkle feed, served by GitHub Pages from this folder at
+  https://thienanblog.github.io/geda-clipboard/appcast.xml
+
+  It is generated, not hand-edited. After a release, run generate_appcast over
+  a folder holding the release archives and commit what it writes here:
+
+      ./build/darwin/sparkle-bin/generate_appcast /path/to/archives/
+
+  That reads the version out of each bundle and signs every enclosure, which is
+  the only way length and edSignature stay true to the files they describe.
+  build/darwin/appcast.xml.example shows the shape of a filled-in item.
+
+  The channel is deliberately empty until the first Sparkle-enabled build ships.
+  An empty channel is a well-formed "nothing newer than what you have"; a
+  missing file is a network error the user sees.
+-->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Geda Clipboard</title>
+    <link>https://thienanblog.github.io/geda-clipboard/appcast.xml</link>
+    <description>Updates for Geda Clipboard</description>
+    <language>en</language>
+  </channel>
+</rss>

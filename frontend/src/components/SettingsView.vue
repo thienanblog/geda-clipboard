@@ -51,6 +51,11 @@ const iconPlacementLabel = computed(() =>
 /** Only macOS has a Dock, so the option to leave it alone is hidden elsewhere. */
 const isMac = computed(() => props.env?.platform === 'darwin')
 
+/** False in the App Store build, which has no updater compiled in: updates
+ *  arrive through the App Store instead. Hiding the control is the honest
+ *  thing -- a button that cannot do anything is worse than no button. */
+const canUpdate = ref(false)
+
 async function load(): Promise<void> {
   cfg.value = await App.GetSettings()
   ignoredText.value = (cfg.value.ignoredApps ?? []).join('\n')
@@ -60,6 +65,7 @@ async function load(): Promise<void> {
   } catch {
     notifyStatus.value = 'unknown'
   }
+  canUpdate.value = await App.UpdatesSupported()
 }
 
 async function fixNotifications(): Promise<void> {
@@ -398,6 +404,11 @@ onUnmounted(() => {
         <div class="about">
           <h1>Geda Clipboard</h1>
           <p class="version">Version {{ env?.version ?? '—' }}</p>
+          <div v-if="canUpdate" class="btn-row">
+            <button class="btn" type="button" @click="App.CheckForUpdates()">
+              Check for Updates…
+            </button>
+          </div>
           <p class="blurb">
             A menu bar clipboard manager: it keeps what you copy, tells you when it does, and
             pastes any earlier entry straight back into the app you were using.

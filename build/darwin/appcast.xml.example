@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Template for the Sparkle feed. The real file is generated, not hand-edited:
+  Sparkle's generate_appcast walks a directory of archives, reads the version
+  out of each bundle and signs every enclosure, which is the only way the
+  length and edSignature stay honest.
+
+      ./bin/generate_appcast /path/to/releases/
+
+  Host this file somewhere that does not move. GitHub Pages is the better home
+  even though the archives live on Releases: a Releases asset URL is pinned to
+  one tag, so a feed hosted there points at itself in the past. The enclosure
+  URLs below do point at Releases, which is correct, because each one names the
+  exact version it belongs to.
+
+  The App Store build must not carry SUFeedURL or SUPublicEDKey in its
+  Info.plist. Nothing here applies to it.
+-->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Geda Clipboard</title>
+    <link>https://thienanblog.github.io/geda-clipboard/appcast.xml</link>
+    <description>Updates for Geda Clipboard</description>
+    <language>en</language>
+
+    <item>
+      <title>Version 0.4.0</title>
+      <pubDate>Mon, 11 Aug 2026 09:00:00 +0000</pubDate>
+
+      <!-- sparkle:version is CFBundleVersion, and it is what Sparkle compares.
+           It has to increase on every release; the marketing string below is
+           only ever shown to people. Keeping these in step with wails.json is
+           what the version test in the repo already guards. -->
+      <sparkle:version>0.4.0</sparkle:version>
+      <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+
+      <sparkle:releaseNotesLink>
+        https://github.com/thienanblog/geda-clipboard/releases/tag/v0.4.0
+      </sparkle:releaseNotesLink>
+
+      <!-- length is the byte size of the archive and edSignature is its EdDSA
+           signature. Both come from generate_appcast; a hand-typed value that
+           is merely close makes Sparkle reject the update with an error that
+           blames the download. -->
+      <enclosure
+        url="https://github.com/thienanblog/geda-clipboard/releases/download/v0.4.0/geda-clipboard-0.4.0-macos-universal.zip"
+        sparkle:edSignature="REPLACE_WITH_OUTPUT_OF_sign_update"
+        length="0"
+        type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>

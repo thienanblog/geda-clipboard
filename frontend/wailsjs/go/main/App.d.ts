@@ -5,6 +5,8 @@ import {main} from '../models';
 import {store} from '../models';
 import {tray} from '../models';
 
+export function CheckForUpdates():Promise<void>;
+
 export function ClearAll():Promise<void>;
 
 export function CopyOnly(arg1:string):Promise<void>;
@@ -60,3 +62,5 @@ export function ShowSettings():Promise<void>;
 export function TogglePin(arg1:string):Promise<boolean>;
 
 export function TogglePopup():Promise<void>;
+
+export function UpdatesSupported():Promise<boolean>;
