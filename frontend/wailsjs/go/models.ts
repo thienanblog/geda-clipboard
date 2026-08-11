@@ -6,6 +6,7 @@ export namespace main {
 	    version: string;
 	    canPaste: boolean;
 	    notificationStatus: string;
+	    hotkeyError: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Environment(source);
@@ -18,6 +19,7 @@ export namespace main {
 	        this.version = source["version"];
 	        this.canPaste = source["canPaste"];
 	        this.notificationStatus = source["notificationStatus"];
+	        this.hotkeyError = source["hotkeyError"];
 	    }
 	}
 

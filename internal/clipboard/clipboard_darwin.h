@@ -19,4 +19,8 @@ void gedaRememberFrontmost(void);
 int gedaPaste(void);
 int gedaHasAccessibility(int prompt);
 
+// Reveals the Accessibility list in System Settings. Returns 1 when the pane
+// was opened.
+int gedaOpenAccessibilitySettings(void);
+
 #endif

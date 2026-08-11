@@ -20,6 +20,7 @@ const cfg = ref<settings.Settings | null>(null)
 const status = ref('')
 const capturingHotkey = ref(false)
 const canPaste = ref(true)
+const hotkeyError = ref('')
 const notifyStatus = ref('unknown')
 let statusTimer: number | undefined
 
@@ -60,12 +61,39 @@ async function load(): Promise<void> {
   cfg.value = await App.GetSettings()
   ignoredText.value = (cfg.value.ignoredApps ?? []).join('\n')
   canPaste.value = props.env?.canPaste ?? true
+  hotkeyError.value = props.env?.hotkeyError ?? ''
   try {
     notifyStatus.value = await App.NotificationStatus()
   } catch {
     notifyStatus.value = 'unknown'
   }
   canUpdate.value = await App.UpdatesSupported()
+}
+
+/** macOS never tells a running application that a permission was granted, so
+ *  both warnings would otherwise stay up until the next launch. Preferences are
+ *  where the user goes to fix this and where they come back to, so re-reading
+ *  the state on focus is enough to clear them at the moment they look. */
+async function refreshPermissions(): Promise<void> {
+  try {
+    canPaste.value = await App.PastePermission()
+  } catch {
+    // Leave the last known answer in place; a failed check is not a denial.
+  }
+  try {
+    notifyStatus.value = await App.NotificationStatus()
+  } catch {
+    // As above.
+  }
+}
+
+async function openPasteSettings(): Promise<void> {
+  try {
+    await App.OpenPastePermissionSettings()
+    flash('Add Geda Clipboard to the Accessibility list, then return here')
+  } catch (err) {
+    flash(String(err))
+  }
 }
 
 async function fixNotifications(): Promise<void> {
@@ -155,13 +183,30 @@ function onHotkeyKeydown(event: KeyboardEvent): void {
 
   cfg.value.hotkey = spec
   capturingHotkey.value = false
-  void save()
+  void saveHotkey()
 }
 
+/** Saving a shortcut is the one setting that can be refused by something
+ *  outside the app -- another application already holding the combination --
+ *  so the stored value alone does not say whether it took effect. Ask what the
+ *  app actually holds now and report that instead. */
+async function saveHotkey(): Promise<void> {
+  await save()
+  try {
+    hotkeyError.value = (await App.Env()).hotkeyError
+  } catch {
+    hotkeyError.value = ''
+  }
+}
+
+/** Raises the system prompt, then falls back to the settings pane. macOS only
+ *  shows that prompt once per application, so on every later attempt this call
+ *  returns false without displaying anything -- which is why the pane is opened
+ *  rather than leaving a button that appears to do nothing. */
 async function requestPastePermission(): Promise<void> {
   canPaste.value = await App.RequestPastePermission()
   if (!canPaste.value) {
-    flash('Permission not granted yet — check System Settings')
+    await openPasteSettings()
   }
 }
 
@@ -179,10 +224,12 @@ function onKeydown(event: KeyboardEvent): void {
 onMounted(() => {
   void load()
   window.addEventListener('keydown', onKeydown, true)
+  window.addEventListener('focus', refreshPermissions)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown, true)
+  window.removeEventListener('focus', refreshPermissions)
   window.clearTimeout(statusTimer)
 })
 </script>
@@ -297,6 +344,11 @@ onUnmounted(() => {
               {{ hotkeyLabel }}
             </button>
           </div>
+          <p v-if="hotkeyError" class="hint warn">
+            This shortcut is not active: {{ hotkeyError }}. Pick a different
+            combination; {{ iconPlacementLabel.toLowerCase() }} opens the popup
+            in the meantime.
+          </p>
           <p class="hint">Click the shortcut, then press the key combination you want.</p>
         </section>
 
@@ -348,11 +400,21 @@ onUnmounted(() => {
           <h2>Permission needed</h2>
           <p class="hint warn">
             Pasting automatically requires Accessibility permission. Without it, choosing an
-            entry still copies it to the clipboard — you just have to paste yourself.
+            entry still copies it to the clipboard — you just have to paste yourself. The
+            shortcut and everything else work either way.
           </p>
-          <button class="btn" type="button" @click="requestPastePermission">
-            Grant Accessibility permission…
-          </button>
+          <div class="btn-row">
+            <button class="btn" type="button" @click="requestPastePermission">
+              Grant Accessibility permission…
+            </button>
+            <button class="btn" type="button" @click="openPasteSettings">
+              Open Accessibility settings…
+            </button>
+          </div>
+          <p class="hint">
+            Turn Geda Clipboard on in the list, then come back to this window — the
+            warning clears once macOS reports the permission.
+          </p>
         </section>
 
         <section>

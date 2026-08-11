@@ -154,6 +154,13 @@ paste it yourself. Without Notifications, history still works but the alerts are
 silently dropped, which is why Preferences surfaces the status and offers a
 **Send a test notification** button.
 
+Both permissions are optional, and neither gates the shortcut: opening the popup
+uses the system shortcut API, which claims one combination rather than watching
+what you type, so it works from first launch and inside the App Store build's
+sandbox. macOS only offers to grant Accessibility once, so Preferences also has
+an **Open Accessibility settings…** button that goes straight to the list, and
+it re-checks the permission whenever the window comes back to the front.
+
 The app is a menu bar accessory (`LSUIElement`), so it has no Dock icon.
 
 > **Note:** if you use Bartender or a similar menu bar manager, a newly added

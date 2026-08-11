@@ -384,3 +384,7 @@ func waitForForeground(hwnd uintptr, timeout time.Duration) bool {
 }
 
 func hasPastePermission(prompt bool) bool { return true }
+
+// Windows gates nothing behind a permission here, so there is no pane to open.
+// hasPastePermission never reports false, so the UI never offers the button.
+func openPastePermissionSettings() error { return nil }

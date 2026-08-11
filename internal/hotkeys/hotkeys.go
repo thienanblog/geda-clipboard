@@ -1,26 +1,36 @@
 // Package hotkeys registers the global shortcut that toggles the popup.
+//
+// The shortcut must work without any permission the user has to grant first.
+// A clipboard manager whose only way in is a shortcut is unreachable until
+// that shortcut registers, and on macOS the App Store build cannot ask for
+// Accessibility before it has shown the user anything. Each platform therefore
+// uses the API that claims a system-wide shortcut outright -- Carbon's
+// RegisterEventHotKey on macOS, RegisterHotKey on Windows -- rather than a
+// keyboard event tap, which observes every keystroke in the session and is
+// gated behind Accessibility for that reason.
 package hotkeys
 
 import (
 	"fmt"
 	"strings"
 	"sync"
-
-	"golang.design/x/hotkey"
 )
 
-// registration is the part of hotkey.Hotkey the Manager uses. It exists as an
-// interface so the interesting failure -- a combination another application
+// registration is the part of a platform hotkey the Manager uses. It exists as
+// an interface so the interesting failure -- a combination another application
 // already owns -- can be exercised in a test without a window server.
 type registration interface {
 	Register() error
 	Unregister() error
-	Keydown() <-chan hotkey.Event
+	// Keydown fires once per press. Implementations must not block on it: the
+	// send happens on the thread the OS delivers the event to, which on macOS
+	// is the main thread, and blocking there freezes the whole application.
+	Keydown() <-chan struct{}
 }
 
 // newRegistration is a variable so tests can substitute a fake.
-var newRegistration = func(mods []hotkey.Modifier, key hotkey.Key) registration {
-	return hotkey.New(mods, key)
+var newRegistration = func(mods []Modifier, key Key) registration {
+	return newPlatformRegistration(mods, key)
 }
 
 // Manager owns at most one registered hotkey and can swap it at runtime when
@@ -125,13 +135,13 @@ func (m *Manager) unregisterLocked() {
 // Parse converts a shortcut string such as "cmd+shift+v" into the modifier and
 // key values the platform expects. Modifier names accepted:
 // cmd/command/meta/super/win, ctrl/control, alt/option/opt, shift.
-func Parse(spec string) ([]hotkey.Modifier, hotkey.Key, error) {
+func Parse(spec string) ([]Modifier, Key, error) {
 	if strings.TrimSpace(spec) == "" {
 		return nil, 0, nil
 	}
 
 	parts := strings.Split(strings.ToLower(strings.TrimSpace(spec)), "+")
-	var mods []hotkey.Modifier
+	var mods []Modifier
 	var keyName string
 
 	for _, raw := range parts {
@@ -156,40 +166,27 @@ func Parse(spec string) ([]hotkey.Modifier, hotkey.Key, error) {
 		return nil, 0, fmt.Errorf("shortcut %q needs at least one modifier", spec)
 	}
 
-	key, ok := keyByName[keyName]
+	key, ok := lookupKey(keyName)
 	if !ok {
 		return nil, 0, fmt.Errorf("unknown key %q in shortcut %q", keyName, spec)
 	}
 	return mods, key, nil
 }
 
-var keyByName = map[string]hotkey.Key{
-	"a": hotkey.KeyA, "b": hotkey.KeyB, "c": hotkey.KeyC, "d": hotkey.KeyD,
-	"e": hotkey.KeyE, "f": hotkey.KeyF, "g": hotkey.KeyG, "h": hotkey.KeyH,
-	"i": hotkey.KeyI, "j": hotkey.KeyJ, "k": hotkey.KeyK, "l": hotkey.KeyL,
-	"m": hotkey.KeyM, "n": hotkey.KeyN, "o": hotkey.KeyO, "p": hotkey.KeyP,
-	"q": hotkey.KeyQ, "r": hotkey.KeyR, "s": hotkey.KeyS, "t": hotkey.KeyT,
-	"u": hotkey.KeyU, "v": hotkey.KeyV, "w": hotkey.KeyW, "x": hotkey.KeyX,
-	"y": hotkey.KeyY, "z": hotkey.KeyZ,
+// keyNames lists every non-modifier key a shortcut may name. The codes behind
+// them are per-platform -- macOS virtual keycodes are unrelated to Windows
+// virtual-key codes -- so each platform keeps its own table and a test asserts
+// that both tables cover this list. Drift would otherwise show up only as a
+// shortcut the settings UI offers and the other platform refuses to register.
+var keyNames = []string{
+	"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+	"n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
 
-	"0": hotkey.Key0, "1": hotkey.Key1, "2": hotkey.Key2, "3": hotkey.Key3,
-	"4": hotkey.Key4, "5": hotkey.Key5, "6": hotkey.Key6, "7": hotkey.Key7,
-	"8": hotkey.Key8, "9": hotkey.Key9,
+	"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
 
-	"f1": hotkey.KeyF1, "f2": hotkey.KeyF2, "f3": hotkey.KeyF3,
-	"f4": hotkey.KeyF4, "f5": hotkey.KeyF5, "f6": hotkey.KeyF6,
-	"f7": hotkey.KeyF7, "f8": hotkey.KeyF8, "f9": hotkey.KeyF9,
-	"f10": hotkey.KeyF10, "f11": hotkey.KeyF11, "f12": hotkey.KeyF12,
+	"f1", "f2", "f3", "f4", "f5", "f6",
+	"f7", "f8", "f9", "f10", "f11", "f12",
 
-	"space":  hotkey.KeySpace,
-	"return": hotkey.KeyReturn,
-	"enter":  hotkey.KeyReturn,
-	"tab":    hotkey.KeyTab,
-	"escape": hotkey.KeyEscape,
-	"esc":    hotkey.KeyEscape,
-	"delete": hotkey.KeyDelete,
-	"up":     hotkey.KeyUp,
-	"down":   hotkey.KeyDown,
-	"left":   hotkey.KeyLeft,
-	"right":  hotkey.KeyRight,
+	"space", "return", "enter", "tab", "escape", "esc", "delete",
+	"up", "down", "left", "right",
 }

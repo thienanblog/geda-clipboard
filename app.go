@@ -94,6 +94,12 @@ type App struct {
 	view      View
 	anchor    tray.Anchor
 	iconCache map[string]string
+
+	// hotkeyErr holds why the shortcut is not registered. A shortcut is the
+	// only way into a menu bar app for most users, so a failure that only
+	// reached the log left them with an app that looked broken and no way to
+	// find out why; preferences now say so.
+	hotkeyErr string
 }
 
 // NewApp constructs the application. Settings and history are loaded eagerly so
@@ -157,9 +163,7 @@ func (a *App) OnStartup(ctx context.Context) {
 	go a.watcher.Run(watchCtx)
 
 	a.hotkeys = hotkeys.New(a.TogglePopup)
-	if err := a.hotkeys.Register(cfg.Hotkey); err != nil {
-		log.Println("hotkey:", err)
-	}
+	a.registerHotkey(cfg.Hotkey)
 
 	a.settings.OnChange(a.onSettingsChanged)
 
@@ -214,9 +218,7 @@ func (a *App) onSettingsChanged(cfg settings.Settings) {
 	}
 
 	if a.hotkeys != nil && a.hotkeys.Spec() != cfg.Hotkey {
-		if err := a.hotkeys.Register(cfg.Hotkey); err != nil {
-			log.Println("hotkey:", err)
-		}
+		a.registerHotkey(cfg.Hotkey)
 	}
 
 	if err := autostart.Set(cfg.LaunchAtLogin); err != nil {
@@ -224,6 +226,30 @@ func (a *App) onSettingsChanged(cfg settings.Settings) {
 	}
 
 	window.SetDockIconVisible(cfg.ShowDockIcon)
+}
+
+// registerHotkey claims spec and remembers why it could not be claimed, so
+// preferences can say so instead of leaving the user to guess.
+func (a *App) registerHotkey(spec string) {
+	err := a.hotkeys.Register(spec)
+
+	// Report the cause rather than the wrapper. The Manager prefixes the spec
+	// it failed on, which the UI is already showing next to the message.
+	message := ""
+	if err != nil {
+		message = err.Error()
+		if cause := errors.Unwrap(err); cause != nil {
+			message = cause.Error()
+		}
+	}
+
+	a.mu.Lock()
+	a.hotkeyErr = message
+	a.mu.Unlock()
+
+	if err != nil {
+		log.Println("hotkey:", err)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -809,6 +835,10 @@ type Environment struct {
 	// NotificationStatus is one of "authorized", "denied", "notDetermined" or
 	// "unknown". Copy/paste alerts are silently dropped unless authorized.
 	NotificationStatus string `json:"notificationStatus"`
+	// HotkeyError is why the global shortcut is not registered, or "" when it
+	// is. The shortcut is usually the only way to open the popup, so a silent
+	// failure here reads as the whole app being broken.
+	HotkeyError string `json:"hotkeyError"`
 }
 
 // Env returns host details for the frontend.
@@ -817,12 +847,18 @@ func (a *App) Env() Environment {
 	if runtime.GOOS == "darwin" {
 		mod = "⌘"
 	}
+
+	a.mu.Lock()
+	hotkeyErr := a.hotkeyErr
+	a.mu.Unlock()
+
 	return Environment{
 		Platform:           runtime.GOOS,
 		ModifierName:       mod,
 		Version:            appVersion,
 		CanPaste:           clipboard.HasPastePermission(false),
 		NotificationStatus: string(notify.Permission()),
+		HotkeyError:        hotkeyErr,
 	}
 }
 
@@ -857,6 +893,21 @@ func (a *App) SendTestNotification() error {
 // prompting the user if necessary. Returns the resulting state.
 func (a *App) RequestPastePermission() bool {
 	return clipboard.HasPastePermission(true)
+}
+
+// PastePermission reports the current state without prompting, so the UI can
+// clear its warning once the user has granted it. macOS does not tell the
+// application when the grant lands, and it does not take effect on a running
+// process until it does, so the only way to notice is to look again.
+func (a *App) PastePermission() bool {
+	return clipboard.HasPastePermission(false)
+}
+
+// OpenPastePermissionSettings takes the user straight to the Accessibility
+// list. Granting the permission there is the only route left once the one-time
+// prompt has been dismissed.
+func (a *App) OpenPastePermissionSettings() error {
+	return clipboard.OpenPastePermissionSettings()
 }
 
 // Quit shuts the application down.

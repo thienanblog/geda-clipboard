@@ -93,7 +93,7 @@ Password managers are skipped automatically. They mark what they put on the clip
 
 PERMISSIONS
 
-Notifications, so the copy and paste alerts can reach you. Accessibility, so Geda can press ⌘V on your behalf and land the entry back where you were typing. Both are optional: without them the app still keeps your history and still puts entries on the clipboard for you to paste yourself.
+Notifications, so the copy and paste alerts can reach you. Accessibility, so Geda can press ⌘V on your behalf and land the entry back where you were typing. Both are optional: without them the app still keeps your history and still puts entries on the clipboard for you to paste yourself. The keyboard shortcut that opens the popup needs neither, and works from first launch.
 
 REQUIREMENTS
 
