@@ -30,3 +30,8 @@ AuthKey_*.p8
 # framework in git history is a burden forever.
 build/darwin/Frameworks/
 build/darwin/sparkle-bin/
+
+# App Store packages. Built by scripts/package-appstore.sh into the repository
+# root and uploaded with Transporter; a signed installer is a build output, not
+# a source file, and one that reached git history would be there forever.
+*.pkg
