@@ -29,6 +29,18 @@ installer_identity="${INSTALLER_IDENTITY:?set INSTALLER_IDENTITY}"
 profile="${PROFILE:?set PROFILE to the Mac App Store provisioning profile}"
 pkg="geda-clipboard-$version.pkg"
 
+# Ask App Store Connect what it already has before spending ten minutes on a
+# universal build. Both failures this catches are invisible until after the
+# upload and the processing pass: a CFBundleVersion that has been seen before,
+# and -- the expensive one -- a marketing version that has already been
+# released, which no build number can reopen. Skipped, with a warning, when the
+# API credentials are not in the environment.
+echo "==> Checking the version against App Store Connect"
+go run ./scripts/asc preflight \
+  -bundle-id com.geda.clipboard \
+  -version "$version" \
+  -build "$build_number"
+
 echo "==> Building (universal, no sparkle tag)"
 wails build -clean -platform darwin/universal
 
