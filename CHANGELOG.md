@@ -9,6 +9,50 @@ changes and the patch version for fixes.
 
 ## [0.4.0] - 2026-08-11
 
+### Upgrading from 0.3.0 on macOS
+
+Earlier versions turned on **Launch at login** by writing a LaunchAgent into
+`~/Library/LaunchAgents`. This one is sandboxed and cannot reach that folder,
+so it can neither use that file nor clean it up. Left alone it keeps starting
+the app at login whatever the preference says. Remove it once:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.geda.clipboard.plist 2>/dev/null
+rm -f ~/Library/LaunchAgents/com.geda.clipboard.plist
+```
+
+Then set **Launch at login** again if you want it; it is registered with the
+system this time and appears under Login Items in System Settings.
+
+History does not carry over. The sandbox gives the app its own container, so
+what earlier versions wrote to `~/Library/Application Support/geda-clipboard`
+is still on disk but out of reach. Copy it into
+`~/Library/Containers/com.geda.clipboard/Data/Library/Application Support/`
+before first launch to keep it.
+
+### Added
+
+- The macOS build is **signed and notarized**. Gatekeeper opens it with no
+  prompt and no `xattr` incantation.
+- **Software updates** through Sparkle, with a *Check for Updates…* button in
+  Preferences › About. Updates are signed with a key separate from the one that
+  signs the app, and are verified before anything is replaced.
+
+### Changed
+
+- **Launch at login** now goes through `SMAppService` instead of a LaunchAgent
+  plist. The registration belongs to the bundle rather than to a path, so a
+  rename or a move no longer breaks it, and it shows up under Login Items in
+  System Settings where it can be turned off from outside the app.
+- **macOS 13 or later** is required, which `SMAppService` sets the floor for.
+- The app runs in the **App Sandbox**. Clipboard history, the global shortcut
+  and pasting back into the previous app all work as before; only the storage
+  location moves, into the app's container.
+- The macOS bundle is now called `Geda Clipboard.app` rather than
+  `geda-clipboard.app`, matching the name the app has everywhere else.
+- Releases are titled with their tag alone — `v0.4.0` rather than
+  `Geda Clipboard 0.4.0`.
+
 ### Fixed
 
 - The crooked dark outline that framed the popup is gone. macOS derives a
@@ -18,16 +62,6 @@ changes and the patch version for fixes.
   and around shapes neither of them still had. The window now carries no shadow
   of its own — the panel and the card draw theirs in CSS, into transparent
   margins the window keeps around them.
-
-### Changed
-
-- The macOS bundle is now called `Geda Clipboard.app` rather than
-  `geda-clipboard.app`, matching the name the app has everywhere else. If
-  **Launch at login** was on, replacing the old bundle leaves the login item
-  pointing at a path that no longer exists; the app now rewrites it on every
-  launch, so starting the renamed app once repairs it.
-- Releases are titled with their tag alone — `v0.4.0` rather than
-  `Geda Clipboard 0.4.0`.
 
 ## [0.3.0] - 2026-08-11
 
