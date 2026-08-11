@@ -55,8 +55,6 @@ export function Select(arg1:string):Promise<void>;
 
 export function SendTestNotification():Promise<void>;
 
-export function ShowPopupView():Promise<void>;
-
 export function ShowSettings():Promise<void>;
 
 export function TogglePin(arg1:string):Promise<boolean>;

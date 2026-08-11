@@ -121,8 +121,14 @@ than for the repository.
 
 Answer **"No, we do not collect data from this app."** That is the whole
 questionnaire. It is accurate: the App Store build compiles without the
-`sparkle` tag, links no framework that opens a socket, declares no network
-entitlement, and contains no analytics or advertising SDK.
+`sparkle` tag, links no framework that opens a socket, and contains no
+analytics or advertising SDK.
+
+The build does declare `com.apple.security.network.client`, and it sends
+nothing. WKWebView will not start under the sandbox without it, so the
+entitlement buys the user interface rather than a connection; the frontend is
+embedded in the binary and served over a custom scheme that never leaves the
+process. Nothing here contradicts the answer above.
 
 | Section | Answer |
 | --- | --- |

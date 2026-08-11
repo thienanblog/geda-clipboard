@@ -102,10 +102,6 @@ export function SendTestNotification() {
   return window['go']['main']['App']['SendTestNotification']();
 }
 
-export function ShowPopupView() {
-  return window['go']['main']['App']['ShowPopupView']();
-}
-
 export function ShowSettings() {
   return window['go']['main']['App']['ShowSettings']();
 }

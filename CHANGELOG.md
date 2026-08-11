@@ -9,7 +9,21 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-08-12
+
 ### Fixed
+
+- **The App Store build shows its interface.** The popup opened as an empty
+  panel: WKWebView's helper processes will not launch in a sandboxed app
+  without the outgoing network entitlement, however local the content is, and
+  the App Store entitlements left it out because the build opens no sockets.
+  The app looked healthy from the outside, capture and its notifications
+  included, which is why only a sandboxed run ever showed it. The build still
+  sends nothing.
+
+- **Closing preferences dismisses the window.** "Done" and Escape used to hand
+  the window back to the history list, leaving a popup on screen that the user
+  had not asked for; the window now goes away, as it does everywhere else.
 
 - The App Store package no longer carries a quarantine flag. The provisioning
   profile is downloaded in a browser, so it is quarantined, and the flag
@@ -238,7 +252,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.4.0...v0.5.0

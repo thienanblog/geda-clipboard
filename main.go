@@ -18,7 +18,7 @@ var trayIcon []byte
 
 // appVersion is reported in the About panel. Override at build time with
 // -ldflags "-X main.appVersion=1.2.3".
-var appVersion = "0.6.1"
+var appVersion = "0.6.2"
 
 func main() {
 	app := NewApp(trayIcon)

@@ -538,17 +538,29 @@ func releaseMemory() {
 	}()
 }
 
-// HidePopup hides the window.
+// HidePopup hides the window, whichever view it is showing, and resets it to
+// the list so the next show starts from the popup.
 func (a *App) HidePopup() {
 	if a.ctx == nil {
 		return
 	}
 	a.mu.Lock()
 	a.visible = false
+	wasSettings := a.view == ViewSettings
 	a.view = ViewPopup
 	a.mu.Unlock()
 
 	wruntime.WindowHide(a.ctx)
+
+	// Put the frontend back on the list only once the window is off screen,
+	// and only when it was showing preferences. Doing it before the window
+	// hides flashes the list inside the settings-sized panel; leaving it undone
+	// means the next show paints one frame of stale preferences, because the
+	// show path emits its own "view:changed" microseconds before the window
+	// appears and the web view cannot repaint that fast.
+	if wasSettings {
+		wruntime.EventsEmit(a.ctx, "view:changed", string(ViewPopup))
+	}
 }
 
 // OnWindowBlur is called by the frontend when the window loses focus. The popup
@@ -785,14 +797,6 @@ func (a *App) ShowSettings() {
 	window.SetPanelInset(shadowSide, shadowTop, shadowSide, shadowBottom, panelRadius)
 	wruntime.WindowCenter(a.ctx)
 	wruntime.WindowShow(a.ctx)
-}
-
-// ShowPopupView switches back from settings to the list.
-func (a *App) ShowPopupView() {
-	a.mu.Lock()
-	anchor := a.anchor
-	a.mu.Unlock()
-	a.showPopupAt(anchor)
 }
 
 // Environment describes the host, for UI that differs per platform.
