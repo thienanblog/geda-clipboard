@@ -1,26 +1,36 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" standalone="yes"?>
 <!--
   The live Sparkle feed, served by GitHub Pages from this folder at
   https://thienanblog.github.io/geda-clipboard/appcast.xml
 
-  It is generated, not hand-edited. After a release, run generate_appcast over
-  a folder holding the release archives and commit what it writes here:
+  Generated, not hand-edited. After publishing a release, download its macOS
+  archive into an otherwise empty folder and run:
 
-      ./build/darwin/sparkle-bin/generate_appcast /path/to/archives/
+      ./build/darwin/sparkle-bin/generate_appcast \
+        --download-url-prefix "https://github.com/thienanblog/geda-clipboard/releases/download/vX.Y.Z/" \
+        --link "https://github.com/thienanblog/geda-clipboard" \
+        -o docs/appcast.xml <folder>
 
-  That reads the version out of each bundle and signs every enclosure, which is
-  the only way length and edSignature stay true to the files they describe.
-  build/darwin/appcast.xml.example shows the shape of a filled-in item.
+  It reads the version and the minimum system version out of the bundle, and
+  signs the enclosure with the EdDSA key in the login keychain. length and
+  edSignature describe one exact file; a value that is merely close makes
+  Sparkle reject the update and blame the download.
 
-  The channel is deliberately empty until the first Sparkle-enabled build ships.
-  An empty channel is a well-formed "nothing newer than what you have"; a
-  missing file is a network error the user sees.
+  The archives stay on Releases, where each URL names the version it belongs
+  to. Only this file lives on Pages, because a feed has to keep one address
+  across every release.
 -->
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
-  <channel>
-    <title>Geda Clipboard</title>
-    <link>https://thienanblog.github.io/geda-clipboard/appcast.xml</link>
-    <description>Updates for Geda Clipboard</description>
-    <language>en</language>
-  </channel>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Geda Clipboard</title>
+        <item>
+            <title>0.5.0</title>
+            <pubDate>Tue, 11 Aug 2026 15:09:52 +0700</pubDate>
+            <link>https://github.com/thienanblog/geda-clipboard</link>
+            <sparkle:version>0.5.0</sparkle:version>
+            <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/thienanblog/geda-clipboard/releases/download/v0.5.0/geda-clipboard-0.5.0-macos-universal.zip" length="8275088" type="application/octet-stream" sparkle:edSignature="2OFxdeU+Q6CuFq5uTN0oJ6Xsko0PZlNxoIqUnswlrUfxalSzrS6ysCro4OhEd0wUvet9ySmO4kfnNaJ7O2Z+Cg=="/>
+        </item>
+    </channel>
 </rss>
