@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geda Clipboard — a menu bar clipboard manager for macOS</title>
+<meta name="description" content="A menu bar clipboard manager for macOS that keeps a searchable history of what you copy and pastes it back where you were working.">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .hero { padding: 4.5rem 0 2rem; border-bottom: 1px solid var(--rule); }
+  .hero h1 { font-size: 2.75rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.75rem; }
+  .btn {
+    display: inline-block; padding: 0.6rem 1.1rem; border-radius: 9px;
+    background: var(--accent); color: #fff; text-decoration: none; font-weight: 560;
+  }
+  .btn.secondary { background: var(--bg-soft); color: var(--fg); border: 1px solid var(--rule); }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.5rem 2rem; margin: 1.5rem 0 0; }
+  .features h3 { margin-top: 0; }
+  .features p { color: var(--fg-soft); font-size: 0.9688rem; }
+  pre {
+    background: var(--bg-soft); border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 0.9rem 1.1rem; overflow-x: auto; font-size: 0.9375rem;
+  }
+  pre code { background: none; border: 0; padding: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">macOS · free · open source</p>
+  <h1>Geda Clipboard</h1>
+  <p class="lede">A menu bar clipboard manager that remembers what you copy, tells
+  you when it does, and pastes any of it back into the app you were working in.</p>
+  <div class="actions">
+    <a class="btn" href="https://github.com/thienanblog/geda-clipboard/releases/latest">Download for macOS</a>
+    <a class="btn secondary" href="https://github.com/thienanblog/geda-clipboard">Source on GitHub</a>
+  </div>
+</header>
+
+<h2>Install with Homebrew</h2>
+<pre><code>brew install --cask thienanblog/tap/geda-clipboard</code></pre>
+
+<h2>What it does</h2>
+
+<div class="features">
+  <div>
+    <h3>Opens where you are looking</h3>
+    <p>Press ⇧⌘V and the popup appears at the pointer, on whichever display it
+    is on. It can hang under the menu bar icon instead if you prefer.</p>
+  </div>
+  <div>
+    <h3>Tells you what it caught</h3>
+    <p>A notification on every copy and paste, showing the source app and a
+    preview. Either alert can be switched off on its own.</p>
+  </div>
+  <div>
+    <h3>Text and images</h3>
+    <p>Images are kept with thumbnails and stored beside the index rather than
+    inside it, so the history stays quick to load.</p>
+  </div>
+  <div>
+    <h3>Counts repeats instead of duplicating</h3>
+    <p>Copying the same thing again bumps the entry you already have and raises
+    its counter, driven by the system clipboard change counter.</p>
+  </div>
+  <div>
+    <h3>Remembers where it came from</h3>
+    <p>Every entry carries the app it was copied from, with its icon, and the
+    first and last time you copied it.</p>
+  </div>
+  <div>
+    <h3>Pastes back for you</h3>
+    <p>The app you came from is remembered before the popup takes focus, then
+    refocused and sent the paste keystroke.</p>
+  </div>
+  <div>
+    <h3>Skips what should not be kept</h3>
+    <p>Password managers opt out through a convention the app honours, and you
+    can name any application to ignore.</p>
+  </div>
+  <div>
+    <h3>Stays on your Mac</h3>
+    <p>No account, no sync, no analytics, no network. Read the
+    <a href="privacy.html">privacy policy</a> — it is short.</p>
+  </div>
+</div>
+
+<h2>Requirements</h2>
+
+<p>macOS 13 Ventura or later, Apple silicon or Intel. Windows builds are
+published alongside each release, though macOS is the tested platform.</p>
+
+<footer class="colophon">
+  <p>© 2026 Ân Vũ. Free and open source under the MIT Licence.</p>
+  <div class="nav">
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="support.html">Support</a>
+    <a href="terms.html">Terms of Use</a>
+    <a href="https://github.com/thienanblog/geda-clipboard">GitHub</a>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

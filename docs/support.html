@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support — Geda Clipboard</title>
+<meta name="description" content="Help with Geda Clipboard: permissions, the shortcut, the menu bar icon, and where your history lives.">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Geda Clipboard</p>
+  <h1>Support</h1>
+  <p class="lede">The questions that come up most, and where to ask one that does not.</p>
+</header>
+
+<h2>Getting help</h2>
+
+<p>Report a bug or ask a question on the public issue tracker:
+<a href="https://github.com/thienanblog/geda-clipboard/issues">github.com/thienanblog/geda-clipboard/issues</a>.
+Please say which version of macOS you are on and which version of the app —
+you will find it under <em>Preferences › About</em>.</p>
+
+<h2>I opened the app and nothing happened</h2>
+
+<p>That is expected. Geda has no window of its own and no Dock icon. Look for
+its icon in the menu bar, at the top right of the screen, and click it. Or
+press <strong>⇧⌘V</strong> from anywhere.</p>
+
+<div class="callout">
+  <p>If you use Bartender, Ice, or another menu bar manager, a newly installed
+  icon is usually hidden by default. Unhide "Geda Clipboard" there and it will
+  appear.</p>
+</div>
+
+<h2>The shortcut does not open the popup</h2>
+
+<ul>
+  <li>Another app may already own <strong>⇧⌘V</strong>. Pick a different
+    combination in <em>Preferences › Shortcut</em>: click the shortcut field,
+    then press the keys you want.</li>
+  <li>Check the app is actually running — its icon should be in the menu bar.</li>
+  <li>Turn on <em>Launch at login</em> in Preferences so it is always there.</li>
+</ul>
+
+<h2>Choosing an entry copies it but does not paste it</h2>
+
+<p>Pasting for you means pressing <code>⌘V</code> on your behalf, and macOS
+gates that behind Accessibility permission.</p>
+
+<ol>
+  <li>Open <strong>System Settings › Privacy &amp; Security › Accessibility</strong>.</li>
+  <li>Turn on <strong>Geda Clipboard</strong>.</li>
+</ol>
+
+<p>Preferences tells you when this permission is missing and offers a button
+that takes you straight there. Without it the app still works — the entry goes
+onto your clipboard and you press <code>⌘V</code> yourself.</p>
+
+<h2>I get no notifications when I copy</h2>
+
+<p>Open <strong>System Settings › Notifications › Geda Clipboard</strong> and
+allow them. <em>Preferences › Notifications</em> has a <strong>Send a test
+notification</strong> button to confirm they are getting through. You can also
+turn the copy and paste alerts off independently there.</p>
+
+<h2>Will it record my passwords?</h2>
+
+<p>Not from a password manager. Those mark what they put on the clipboard as
+confidential, and the app skips anything marked that way — this is on by
+default under <em>Preferences › Privacy</em>. You can also list any application
+by name and the app will never record a copy from it.</p>
+
+<p>Nothing recorded ever leaves your Mac. See the
+<a href="privacy.html">privacy policy</a>.</p>
+
+<h2>Where is my history kept, and how do I delete it?</h2>
+
+<p>In the app's own sandboxed folder on your Mac. Delete a single entry with
+<code>⌥⌫</code>, delete everything with <em>Clear all</em>, or set a smaller
+limit under <em>Preferences › History</em>. Removing the app deletes the lot.</p>
+
+<h2>Keyboard shortcuts</h2>
+
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Action</th><th>Keys</th></tr></thead>
+  <tbody>
+    <tr><td>Open or close the popup</td><td><code>⇧⌘V</code> (configurable)</td></tr>
+    <tr><td>Move through the list</td><td><code>↑</code> <code>↓</code>, <code>Home</code>, <code>End</code></td></tr>
+    <tr><td>Use the selected entry</td><td><code>Return</code></td></tr>
+    <tr><td>Use entry 1 to 9</td><td><code>⌘1</code> … <code>⌘9</code></td></tr>
+    <tr><td>Copy without pasting</td><td><code>⌘C</code></td></tr>
+    <tr><td>Pin or unpin</td><td><code>⌥P</code></td></tr>
+    <tr><td>Delete the entry</td><td><code>⌥⌫</code></td></tr>
+    <tr><td>Clear everything</td><td><code>⌥⇧⌘⌫</code></td></tr>
+    <tr><td>Preferences</td><td><code>⌘,</code></td></tr>
+    <tr><td>Clear the search, then close</td><td><code>Esc</code></td></tr>
+    <tr><td>Quit</td><td><code>⌘Q</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The search field keeps focus while the popup is open, so two of these defer
+to it when there is text to act on: <code>⌥⌫</code> deletes the previous word
+of a search you have typed rather than an entry, and <code>⌘C</code> copies a
+selection in the field. With the search empty they act on the list.</p>
+
+<h2>System requirements</h2>
+
+<p>macOS 13 Ventura or later, on Apple silicon or Intel.</p>
+
+<footer class="colophon">
+  <p>© 2026 Ân Vũ.</p>
+  <div class="nav">
+    <a href="index.html">Home</a>
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="terms.html">Terms of Use</a>
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

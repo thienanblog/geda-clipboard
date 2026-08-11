@@ -4,12 +4,15 @@
   Entitlements for the Mac App Store build. Four keys, and every one of them
   earns its place.
 
-  The App Store build is compiled with -tags appstore, which leaves Sparkle out
-  of the binary entirely, so none of Sparkle's requirements appear here. That
-  is deliberate and load-bearing: com.apple.security.temporary-exception.* in a
-  submission is scrutinised closely, and a temporary exception whose purpose is
-  self-updating is a direct read on guideline 2.4.5. There is no version of
-  this file that both ships Sparkle and survives review.
+  The App Store build is compiled with no build tag at all, which is what
+  leaves Sparkle out of the binary: the tag is -tags sparkle and it adds the
+  updater rather than removing it, so forgetting it yields a build with no
+  updater instead of a submission carrying one. None of Sparkle's requirements
+  appear here as a result. That is deliberate and load-bearing:
+  com.apple.security.temporary-exception.* in a submission is scrutinised
+  closely, and a temporary exception whose purpose is self-updating is a direct
+  read on guideline 2.4.5. There is no version of this file that both ships
+  Sparkle and survives review.
 
   No network entitlement either. Without Sparkle the app opens no sockets, and
   an entitlement it does not use is a question at review it does not need to

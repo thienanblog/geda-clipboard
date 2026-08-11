@@ -59,8 +59,23 @@ To build:
 
 ## Install
 
-Every [release](https://github.com/thienanblog/geda-clipboard/releases) has a
-macOS bundle and Windows executables attached.
+On macOS, with [Homebrew](https://brew.sh):
+
+```bash
+brew install --cask thienanblog/tap/geda-clipboard
+```
+
+`brew` taps [thienanblog/homebrew-tap](https://github.com/thienanblog/homebrew-tap)
+itself the first time, so there is no separate `brew tap` step.
+
+The app updates itself through Sparkle, which the cask declares with
+`auto_updates true`, so a plain `brew upgrade` deliberately leaves it alone —
+reinstalling the version the cask pins over a copy that has already updated
+itself would walk you backwards. To have Homebrew do the upgrade instead, ask
+for it: `brew upgrade --cask --greedy geda-clipboard`.
+
+Otherwise, every [release](https://github.com/thienanblog/geda-clipboard/releases)
+has a macOS bundle and Windows executables attached.
 
 - **macOS** — unzip, move `Geda Clipboard.app` to `/Applications`, and open it.
   The build is signed with a Developer ID certificate and notarized by Apple,
@@ -265,8 +280,10 @@ The version appears in two files and a test fails if they disagree:
 3. Merge to `main` and wait for CI to pass on both platforms.
 4. Tag and push. The [release workflow](.github/workflows/release.yml) takes it
    from there: it refuses a tag that disagrees with `wails.json`, builds a
-   universal macOS bundle and x64/arm64 Windows executables, and publishes them
-   with the changelog section for that version as the release notes.
+   universal macOS bundle and x64/arm64 Windows executables, publishes them
+   with the changelog section for that version as the release notes, and
+   pushes an updated Homebrew cask to
+   [thienanblog/homebrew-tap](https://github.com/thienanblog/homebrew-tap).
 
    ```bash
    git tag -a v1.2.3 -m "v1.2.3"

@@ -7,6 +7,38 @@ All notable changes to Geda Clipboard are recorded here. The format follows
 While the major version is 0, the minor version is bumped for behavioural
 changes and the patch version for fixes.
 
+## [Unreleased]
+
+## [0.6.0] - 2026-08-11
+
+### Added
+
+- **Homebrew cask.** `brew install --cask thienanblog/tap/geda-clipboard`
+  installs the same signed, notarized bundle the release page serves. The cask
+  declares `auto_updates true`, so Homebrew stands aside and lets Sparkle do
+  the upgrading; `brew upgrade --cask --greedy` overrides that. The release
+  workflow pushes an updated cask to
+  [thienanblog/homebrew-tap](https://github.com/thienanblog/homebrew-tap)
+  whenever a non-pre-release tag is published.
+- **A project page, privacy policy, support page and terms**, served by GitHub
+  Pages from `docs/` alongside the Sparkle appcast.
+- **App Store Connect preflight.** `scripts/package-appstore.sh` now asks App
+  Store Connect whether the version and build number are still free before it
+  builds, and refuses a marketing version that has already been released —
+  which raising the build number cannot reopen.
+
+### Fixed
+
+- The macOS bundle declares `LSApplicationCategoryType`. Without it App Store
+  Connect refuses the upload, and only says so after the processing pass has
+  run.
+
+### Notes
+
+- The Mac App Store build carries no updater, by construction: the Sparkle
+  framework is added by `-tags sparkle` rather than removed by a tag, so the
+  App Store package cannot ship one by forgetting a flag.
+
 ## [0.5.0] - 2026-08-11
 
 ### Upgrading from 0.4.0 or earlier on macOS
@@ -182,7 +214,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.2.0...v0.3.0

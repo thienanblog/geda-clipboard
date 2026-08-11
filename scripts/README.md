@@ -40,11 +40,88 @@ PROFILE=~/path/Geda_Clipboard_MAS.provisionprofile \
 `CFBundleVersion` it has seen before, and a rejected review means uploading
 again under the same marketing version.
 
+Before it builds anything, the script runs `scripts/asc` against App Store
+Connect and refuses a version that would be rejected. Set the API credentials
+to enable it:
+
+```bash
+AC_API_KEY_P8=~/path/AuthKey_XXXXXXXXXX.p8 \
+AC_API_KEY_ID=XXXXXXXXXX \
+AC_API_ISSUER_ID=<uuid from Users and Access, Integrations> \
+  ...
+```
+
+Without them the check prints a warning and skips, so a fork can still package.
+With them it catches the two failures that are otherwise invisible until after
+the upload and the processing pass: a build number already used, and a
+marketing version that has already been released. The second one cannot be
+fixed by raising the build number — a released version is spent, and shipping
+a change means creating a new version in App Store Connect and bumping
+`wails.json` and `main.go` to match.
+
+`build/appstore/metadata.md` holds everything App Store Connect asks for in its
+own fields, so a submission is copying rather than rewriting.
+
 The script refuses to package if a Sparkle framework, a linked library, an
 updater symbol or a Sparkle `Info.plist` key survived into the bundle. That is
 not paranoia: `wails build -clean` does not empty `build/bin`, so a framework
 left there by `package-macos.sh` really does persist into the next bundle, and
 Apple scans the bundle rather than the source.
+
+## `update-cask.sh` — the Homebrew cask
+
+Renders `Casks/geda-clipboard.rb` into a checkout of
+[thienanblog/homebrew-tap](https://github.com/thienanblog/homebrew-tap) and
+commits it. Pushing is left to you, so a local run can be reviewed first.
+
+```bash
+git clone https://github.com/thienanblog/homebrew-tap ../homebrew-tap
+TAP_DIR=../homebrew-tap ./scripts/update-cask.sh
+git -C ../homebrew-tap show
+git -C ../homebrew-tap push
+```
+
+The release workflow runs the same script after publishing a tag, so this is
+normally only needed to repair a cask by hand. It is skipped for pre-releases:
+a tap has one cask per app and no notion of a channel, so pushing `0.6.0-rc.1`
+there would hand a release candidate to everyone running `brew upgrade`.
+
+The checksum is taken from the archive attached to the GitHub release, never
+from a local build. Two builds of one commit are not bit-identical — timestamps
+and the signature see to that — and Homebrew rejects a download whose hash is
+off by a byte.
+
+`brew style --cask <path>` is worth running after a change to the template. The
+`--online` audit is stricter still, but it insists on a current Xcode.
+
+## `screenshot-fixture` — App Store screenshots
+
+Store screenshots have to show a full history, and the one history to hand is
+the developer's own. That is precisely the wrong thing to publish: a clipboard
+manager's screenshots are where a real password or API key would end up on a
+public store page. This writes a synthetic one instead.
+
+```bash
+go run ./scripts/screenshot-fixture -home /tmp/geda-shots
+```
+
+It builds the history through `internal/store`, so IDs, hashes, blob names and
+the index layout come from the same code the app uses and cannot drift from the
+schema. It refuses to run against your real home directory.
+
+The app resolves its data directory from `HOME`, so in principle
+`HOME=/tmp/geda-shots wails dev` runs it against the fixture. **It does not.**
+`wails dev` relaunches the bundle through `open`, which starts it from launchd
+with a clean environment, so `HOME` never arrives and the app loads the real
+history. Check what is on screen before capturing anything.
+
+The five images in the submission were taken from `frontend/dist` served
+statically with the Wails bindings stubbed out from the fixture, then composed
+onto 2880x1800 canvases with headless Chrome. That harness is not in the
+repository: it has to know the shape of the bound API, and a copy of that here
+would rot silently the first time a method changes. Rebuild it when screenshots
+are next needed, or capture the real window and crop to one of the four sizes
+App Store Connect accepts.
 
 ## Publishing an update to the appcast
 
