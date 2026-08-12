@@ -18,6 +18,19 @@ package window
 // shrink the window on any scaled display.
 func MoveTo(x, y int) bool { return moveTo(x, y) }
 
+// Focus asks the native window to hand keyboard focus to its WebView.
+//
+// Wails normally does this as part of WindowShow. On Windows, however, the
+// first show of a StartHidden WebView2 window can focus only the top-level
+// frame. Posting another focus message after the show has been queued makes
+// Wails call WebView2's programmatic MoveFocus path once the window is visible.
+func Focus() { focus() }
+
+// IsForeground reports whether the application window is still the OS
+// foreground window. It distinguishes a transient WebView blur during focus
+// hand-off from an actual click into another application.
+func IsForeground() bool { return isForeground() }
+
 // SetPanelInset says how much of the window, on each side, is transparent
 // surround rather than panel, and how far the panel's own corners are rounded.
 // The surround is the preview gutter on the left plus the margin every side

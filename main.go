@@ -13,12 +13,9 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-//go:embed build/trayicon.png
-var trayIcon []byte
-
 // appVersion is reported in the About panel. Override at build time with
 // -ldflags "-X main.appVersion=1.2.3".
-var appVersion = "0.7.0"
+var appVersion = "0.7.1"
 
 func main() {
 	app := NewApp(trayIcon)
