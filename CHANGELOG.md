@@ -9,6 +9,22 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-12
+
+### Fixed
+
+- **The Windows notification-area icon is visible.** The tray library asks
+  Win32 to load ICO data, but the app supplied the monochrome PNG template used
+  by macOS. Windows rejected it while the clipboard watcher kept running, so
+  copy notifications worked even though there was no icon to click.
+
+- **The Windows popup stays open and accepts keyboard input.** A hidden
+  WebView2 window can briefly blur while Windows transfers focus from the
+  native frame into the browser. That transient event was treated as an
+  outside click, immediately hiding the popup. The app now restores WebView
+  focus after showing and only dismisses a blurred popup after its native
+  window has actually left the foreground.
+
 ## [0.7.0] - 2026-08-12
 
 ### Fixed
@@ -285,7 +301,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.0...v0.6.1

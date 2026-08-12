@@ -16,7 +16,9 @@ var (
 	procEnumWindows              = user32.NewProc("EnumWindows")
 	procGetClassNameW            = user32.NewProc("GetClassNameW")
 	procGetWindowThreadProcessId = user32.NewProc("GetWindowThreadProcessId")
+	procGetForegroundWindow      = user32.NewProc("GetForegroundWindow")
 	procIsWindow                 = user32.NewProc("IsWindow")
+	procPostMessageW             = user32.NewProc("PostMessageW")
 	procSetWindowPos             = user32.NewProc("SetWindowPos")
 )
 
@@ -107,6 +109,27 @@ func moveTo(x, y int) bool {
 		swpNoSize|swpNoZOrder|swpNoActivate,
 	)
 	return ret != 0
+}
+
+func focus() {
+	hwnd := mainWindow()
+	if hwnd == 0 {
+		return
+	}
+
+	// Wails handles WM_SETFOCUS by calling WebView2 MoveFocus. Post instead of
+	// Send so this runs on Wails' window thread, after the queued WindowShow.
+	const wmSetFocus = 0x0007
+	procPostMessageW.Call(hwnd, wmSetFocus, 0, 0)
+}
+
+func isForeground() bool {
+	hwnd := mainWindow()
+	if hwnd == 0 {
+		return false
+	}
+	foreground, _, _ := procGetForegroundWindow.Call()
+	return foreground == hwnd
 }
 
 // setPanelInset is a no-op on Windows: the window has no material of its own,

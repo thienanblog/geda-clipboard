@@ -469,6 +469,7 @@ func (a *App) showPopupAt(anchor tray.Anchor) {
 	}
 
 	wruntime.WindowShow(a.ctx)
+	window.Focus()
 }
 
 // placement is a resolved popup position, given both ways: relative to the work
@@ -594,12 +595,25 @@ func (a *App) HidePopup() {
 // stays put so the user can switch to another app while editing preferences.
 func (a *App) OnWindowBlur() {
 	a.mu.Lock()
-	shouldHide := a.visible && a.view == ViewPopup
+	visiblePopup := a.visible && a.view == ViewPopup
 	a.mu.Unlock()
+	foreground := window.IsForeground()
 
-	if shouldHide {
+	if shouldHideOnBlur(visiblePopup, foreground) {
 		a.HidePopup()
+		return
 	}
+
+	// WebView2 can briefly blur while a StartHidden window transfers focus from
+	// the native frame into the browser. Re-nudge the WebView instead of treating
+	// that hand-off as an outside click and immediately hiding the popup.
+	if visiblePopup && foreground {
+		window.Focus()
+	}
+}
+
+func shouldHideOnBlur(visiblePopup, foreground bool) bool {
+	return visiblePopup && !foreground
 }
 
 // ---------------------------------------------------------------------------

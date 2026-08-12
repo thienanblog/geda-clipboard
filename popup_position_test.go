@@ -150,3 +150,15 @@ func TestPopupPositionWithoutAnySource(t *testing.T) {
 		}
 	}
 }
+
+func TestPopupBlurIgnoresWindowsWebViewFocusHandoff(t *testing.T) {
+	if shouldHideOnBlur(true, true) {
+		t.Fatal("foreground popup would hide during WebView focus hand-off")
+	}
+	if !shouldHideOnBlur(true, false) {
+		t.Fatal("background popup did not hide")
+	}
+	if shouldHideOnBlur(false, false) {
+		t.Fatal("settings hid when the window lost focus")
+	}
+}
