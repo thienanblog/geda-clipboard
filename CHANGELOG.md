@@ -9,6 +9,14 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Left- and right-clicking the Windows notification-area icon opens the
+  popup.** The tray window and its Win32 message loop now stay on the same OS
+  thread, so Windows can deliver both mouse-button callbacks. Its preview and
+  shadow margins are now transparent, without a native border around the
+  larger backing window.
+
 ## [0.7.1] - 2026-08-12
 
 ### Fixed
