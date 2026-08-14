@@ -9,6 +9,8 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-08-15
+
 ### Fixed
 
 - **Left- and right-clicking the Windows notification-area icon opens the
@@ -16,6 +18,12 @@ changes and the patch version for fixes.
   thread, so Windows can deliver both mouse-button callbacks. Its preview and
   shadow margins are now transparent, without a native border around the
   larger backing window.
+
+- **A history file that cannot be read is kept instead of being replaced.**
+  Any read or parse failure started the app with an empty history, and the next
+  copy saved over the file, so one unreadable index destroyed the whole history
+  with nothing to recover from. The file is now moved to
+  `history.json.unreadable` before that first save.
 
 ## [0.7.1] - 2026-08-12
 
@@ -309,7 +317,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.1...v0.6.2

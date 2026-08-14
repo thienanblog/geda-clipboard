@@ -549,3 +549,109 @@ func TestPreview(t *testing.T) {
 		})
 	}
 }
+
+// A history file that cannot be parsed must not be overwritten by the empty
+// history it produced: the next capture saves over the index, so losing the
+// copy loses everything the user has ever copied.
+func TestUnreadableIndexIsPreservedBeforeItIsOverwritten(t *testing.T) {
+	dir := t.TempDir()
+	index := filepath.Join(dir, "history.json")
+
+	s, err := OpenAt(dir, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	addText(t, s, "the-only-copy", time.Now())
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	original, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The index is written atomically, so this stands in for damage the app
+	// cannot inflict on itself: a bad sector, a restore that copied a partial
+	// file, or another tool that rewrote the index.
+	if err := os.WriteFile(index, original[:len(original)/2], 0o600); err != nil {
+		t.Fatal(err)
+	}
+	truncated, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := OpenAt(dir, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+
+	if reopened.Count() != 0 {
+		t.Fatalf("Count after unreadable index = %d, want 0", reopened.Count())
+	}
+
+	// The next capture rewrites the index, which is what destroys the history
+	// when nothing was kept.
+	addText(t, reopened, "after-the-failure", time.Now())
+	if err := reopened.Flush(); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	kept, err := os.ReadFile(index + ".unreadable")
+	if err != nil {
+		t.Fatalf("unreadable index was not preserved: %v", err)
+	}
+	if !bytes.Equal(kept, truncated) {
+		t.Errorf("preserved copy = %q, want the unreadable index %q", kept, truncated)
+	}
+}
+
+// A second failure is a failure of the index written after the first one, so
+// the rescued copy of the real history has to survive it.
+func TestPreservedIndexIsNotClobberedByALaterFailure(t *testing.T) {
+	dir := t.TempDir()
+	index := filepath.Join(dir, "history.json")
+
+	if err := os.WriteFile(index, []byte(`[{"id":"i1","kind":"text"`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := OpenAt(dir, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Close()
+
+	if err := os.WriteFile(index, []byte(`{"not":"a list"`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	second, err := OpenAt(dir, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second.Close()
+
+	kept, err := os.ReadFile(index + ".unreadable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(kept) != `[{"id":"i1","kind":"text"` {
+		t.Errorf("preserved copy = %q, want the first unreadable index", kept)
+	}
+}
+
+// A first run has no index at all, which is not a failure and must not leave a
+// stray file behind.
+func TestMissingIndexIsNotPreserved(t *testing.T) {
+	dir := t.TempDir()
+
+	s, err := OpenAt(dir, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	if _, err := os.Stat(filepath.Join(dir, "history.json.unreadable")); !os.IsNotExist(err) {
+		t.Errorf("missing index produced a preserved copy (err = %v)", err)
+	}
+}
