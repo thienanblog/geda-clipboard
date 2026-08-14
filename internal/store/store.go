@@ -76,6 +76,10 @@ func Open(maxItems int) (*Store, error) {
 
 // OpenAt loads the history from an explicit directory. A missing or corrupt
 // index yields an empty history rather than an error, so the app always starts.
+// An index that exists but cannot be read or parsed is moved aside first: the
+// empty history it produces is written over the index by the next capture, so
+// without the kept copy a single unreadable file silently destroys everything
+// the user has ever copied, with nothing left to recover from.
 func OpenAt(dir string, maxItems int) (*Store, error) {
 	blobs := filepath.Join(dir, "blobs")
 	if err := os.MkdirAll(blobs, 0o700); err != nil {
@@ -97,14 +101,17 @@ func OpenAt(dir string, maxItems int) (*Store, error) {
 
 	raw, err := os.ReadFile(s.indexPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return s, nil
+		if !errors.Is(err, fs.ErrNotExist) {
+			fmt.Fprintln(os.Stderr, "geda-clipboard: read history:", err)
+			s.preserveIndex()
 		}
 		return s, nil
 	}
 
 	var items []*Item
 	if err := json.Unmarshal(raw, &items); err != nil {
+		fmt.Fprintln(os.Stderr, "geda-clipboard: parse history:", err)
+		s.preserveIndex()
 		return s, nil
 	}
 
@@ -143,6 +150,23 @@ func OpenAt(dir string, maxItems int) (*Store, error) {
 	s.sortItems()
 	s.nextID = time.Now().UnixNano()
 	return s, nil
+}
+
+// preserveIndex moves an index that could not be loaded out of the way of the
+// empty history that replaced it. It keeps the first copy rather than the most
+// recent one: after a failed load the app writes a fresh index, so a later
+// failure is a failure of that new file, and overwriting the rescued copy would
+// drop the only remaining record of the real history.
+func (s *Store) preserveIndex() {
+	dest := s.indexPath + ".unreadable"
+	if _, err := os.Stat(dest); err == nil {
+		return
+	}
+	if err := os.Rename(s.indexPath, dest); err != nil {
+		fmt.Fprintln(os.Stderr, "geda-clipboard: preserve history:", err)
+		return
+	}
+	fmt.Fprintln(os.Stderr, "geda-clipboard: unreadable history kept at", dest)
 }
 
 // SetMaxItems updates the cap and evicts immediately if needed.

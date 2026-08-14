@@ -17,6 +17,12 @@ changes and the patch version for fixes.
   shadow margins are now transparent, without a native border around the
   larger backing window.
 
+- **A history file that cannot be read is kept instead of being replaced.**
+  Any read or parse failure started the app with an empty history, and the next
+  copy saved over the file, so one unreadable index destroyed the whole history
+  with nothing to recover from. The file is now moved to
+  `history.json.unreadable` before that first save.
+
 ## [0.7.1] - 2026-08-12
 
 ### Fixed
