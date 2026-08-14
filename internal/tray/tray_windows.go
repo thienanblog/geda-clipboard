@@ -3,7 +3,9 @@
 package tray
 
 import (
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/energye/systray"
@@ -21,42 +23,52 @@ var (
 )
 
 var (
-	startOnce sync.Once
-	stopFn    func()
+	startOnce     sync.Once
+	started       atomic.Bool
+	stopRequested atomic.Bool
 )
 
-// start creates the notification-area icon. systray owns its own Win32 message
-// loop on a dedicated thread, so unlike macOS there is no conflict with the
-// Wails event loop and no need for a hand-written shell icon.
+// start creates the notification-area icon. The Win32 window and its message
+// loop must stay on the same OS thread: Windows routes window messages to the
+// queue of the thread that created the window. systray's external-loop helper
+// creates the window before starting its loop in another goroutine, leaving a
+// visible icon whose left- and right-click messages are never dispatched.
 func start(icon []byte, tooltip string) error {
-	var err error
 	startOnce.Do(func() {
-		ready := func() {
-			if len(icon) > 0 {
-				systray.SetIcon(icon)
-			}
-			if tooltip != "" {
-				systray.SetTooltip(tooltip)
-			}
-			systray.SetOnClick(func(menu systray.IMenu) { fireLeft(currentAnchor()) })
-			systray.SetOnRClick(func(menu systray.IMenu) { fireRight(currentAnchor()) })
-		}
+		go func() {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
 
-		var startFn func()
-		startFn, stopFn = systray.RunWithExternalLoop(ready, func() {})
-		startFn()
+			systray.Run(func() {
+				if len(icon) > 0 {
+					systray.SetIcon(icon)
+				}
+				if tooltip != "" {
+					systray.SetTooltip(tooltip)
+				}
+				systray.SetOnClick(func(menu systray.IMenu) { fireLeft(currentAnchor()) })
+				systray.SetOnRClick(func(menu systray.IMenu) { fireRight(currentAnchor()) })
+				started.Store(true)
+				if stopRequested.Load() {
+					systray.Quit()
+				}
+			}, func() {
+				started.Store(false)
+			})
+		}()
 	})
-	return err
+	return nil
 }
 
 func stop() {
-	if stopFn != nil {
-		stopFn()
+	stopRequested.Store(true)
+	if started.Load() {
+		systray.Quit()
 	}
 }
 
 // Exists reports whether the tray icon has been created.
-func Exists() bool { return stopFn != nil }
+func Exists() bool { return started.Load() }
 
 type point struct {
 	X, Y int32
