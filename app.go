@@ -470,6 +470,12 @@ func (a *App) showPopupAt(anchor tray.Anchor) {
 
 	wruntime.WindowShow(a.ctx)
 	window.Focus()
+
+	// The web view can only take keyboard focus once the window is on screen
+	// and focused, so the search field is claimed from here rather than from
+	// the "view:changed" above -- focusing while the window is still hidden
+	// leaves the caret nowhere and the first keystrokes go to the document.
+	wruntime.EventsEmit(a.ctx, "popup:shown")
 }
 
 // placement is a resolved popup position, given both ways: relative to the work

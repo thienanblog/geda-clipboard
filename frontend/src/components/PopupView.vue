@@ -29,6 +29,11 @@ const hovered = ref(-1)
 /** Set while the user is driving the list from the keyboard, so the card can
  *  follow the selection with the mouse away. */
 const keyboardNav = ref(false)
+/** True until the keyboard has claimed the list. A freshly opened popup, or a
+ *  new search, already highlights the first row without the user having walked
+ *  to it, so the first Down has to land on that row instead of stepping past
+ *  it -- otherwise opening the popup and pressing Down skips the newest entry. */
+const primed = ref(true)
 const previewOnHover = ref(true)
 
 /** Live width of the list, kept by a ResizeObserver: the popup size is
@@ -135,8 +140,26 @@ function showError(message: string): void {
   errorTimer = window.setTimeout(() => (errorMessage.value = ''), 4000)
 }
 
+/** Puts the caret in the search field. The window is shown and focused by the
+ *  Go side after the view is switched, and the web view hands focus back to the
+ *  document while that is settling, so the claim is repeated on the next frame
+ *  -- without it the popup opens with the caret nowhere and typing is lost. */
 function focusSearch(): void {
-  nextTick(() => searchEl.value?.focus())
+  const claim = () => searchEl.value?.focus({ preventScroll: true })
+  nextTick(() => {
+    claim()
+    requestAnimationFrame(claim)
+  })
+}
+
+/** State a newly shown popup starts from: no search, newest entry highlighted,
+ *  and the list not yet claimed by the keyboard. */
+function resetForOpen(): void {
+  query.value = ''
+  selected.value = 0
+  hovered.value = -1
+  keyboardNav.value = false
+  primed.value = true
 }
 
 /** Keeps the selected row inside the scroll viewport during keyboard nav. */
@@ -179,8 +202,11 @@ watch(flyoutEl, (card) => {
 function move(delta: number): void {
   if (empty.value) return
   const count = items.value.length
+  const claiming = primed.value && delta > 0
   keyboardNav.value = true
-  selected.value = (selected.value + delta + count) % count
+  primed.value = false
+  // The first Down only claims the highlight that is already on the first row.
+  if (!claiming) selected.value = (selected.value + delta + count) % count
   scrollSelectedIntoView()
 }
 
@@ -345,12 +371,14 @@ function onKeydown(event: KeyboardEvent): void {
     case 'Home':
       event.preventDefault()
       keyboardNav.value = true
+      primed.value = false
       selected.value = 0
       scrollSelectedIntoView()
       break
     case 'End':
       event.preventDefault()
       keyboardNav.value = true
+      primed.value = false
       selected.value = Math.max(0, items.value.length - 1)
       scrollSelectedIntoView()
       break
@@ -374,6 +402,7 @@ watch(query, () => {
   selected.value = 0
   hovered.value = -1
   keyboardNav.value = false
+  primed.value = true
   void reload()
 })
 
@@ -401,6 +430,10 @@ onMounted(() => {
   if (listEl.value) sizeObserver.observe(listEl.value)
 
   window.addEventListener('keydown', onKeydown)
+  // The window can regain focus without a fresh show -- Windows hands focus
+  // from the native frame into the web view after the popup appears -- and the
+  // search field has to get the caret back each time.
+  window.addEventListener('focus', focusSearch)
 
   disposers.push(
     EventsOn('history:changed', () => {
@@ -410,21 +443,21 @@ onMounted(() => {
   disposers.push(
     EventsOn('view:changed', (view: string) => {
       if (view === 'popup') {
-        // Reopening resets the search and returns to the newest entry.
-        query.value = ''
-        selected.value = 0
-        hovered.value = -1
-        keyboardNav.value = false
+        // Reopening resets the search and returns to the newest entry. This
+        // arrives before the window is on screen, so the caret is claimed from
+        // "popup:shown" instead.
+        resetForOpen()
         void reload()
         void loadSettings()
-        focusSearch()
       }
     }),
   )
+  disposers.push(EventsOn('popup:shown', () => focusSearch()))
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('focus', focusSearch)
   window.clearTimeout(errorTimer)
   sizeObserver?.disconnect()
   cardObserver?.disconnect()
