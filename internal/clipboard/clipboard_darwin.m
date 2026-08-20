@@ -1,7 +1,7 @@
 #import <Cocoa/Cocoa.h>
-#import <ApplicationServices/ApplicationServices.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "clipboard_darwin.h"
 
 // Markers by which a source app asks clipboard managers to skip a payload.
@@ -261,73 +261,37 @@ void gedaRememberFrontmost(void) {
     }
 }
 
-int gedaHasAccessibility(int prompt) {
+// gedaActivateRemembered brings the application captured by
+// gedaRememberFrontmost back to the front and waits until it is actually
+// active. Returns 1 when the target holds focus.
+//
+// Activation is not an Accessibility facility: NSRunningApplication grants it
+// to any app, sandboxed or not, and it needs no permission. That is what makes
+// it the whole of the paste path in the App Store build, where the entry is
+// copied and the user presses the paste shortcut themselves. Without it the
+// keystroke would land nowhere, because hiding our panel leaves this process
+// active with no window to receive it.
+int gedaActivateRemembered(void) {
     @autoreleasepool {
-        NSDictionary *options = @{
-            (__bridge id)kAXTrustedCheckOptionPrompt : (prompt ? @YES : @NO)
-        };
-        return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options) ? 1 : 0;
-    }
-}
-
-int gedaOpenAccessibilitySettings(void) {
-    @autoreleasepool {
-        // Handing the URL to Launch Services rather than spawning /usr/bin/open
-        // keeps this working inside the App Sandbox, where the App Store build
-        // runs and where this button matters most. The query string is the
-        // anchor System Settings uses to select the Accessibility list; without
-        // it the user lands on Privacy & Security and has to find it.
-        NSURL *url = [NSURL URLWithString:@"x-apple.systempreferences:"
-                                          @"com.apple.preference.security?"
-                                          @"Privacy_Accessibility"];
-        return [[NSWorkspace sharedWorkspace] openURL:url] ? 1 : 0;
-    }
-}
-
-// sendPasteKeystroke synthesises Cmd+V at the HID level so the frontmost app
-// receives it as an ordinary paste.
-static void sendPasteKeystroke(void) {
-    const CGKeyCode kVK_ANSI_V = 0x09;
-
-    CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStateCombinedSessionState);
-
-    CGEventRef keyDown = CGEventCreateKeyboardEvent(source, kVK_ANSI_V, true);
-    CGEventRef keyUp = CGEventCreateKeyboardEvent(source, kVK_ANSI_V, false);
-
-    CGEventSetFlags(keyDown, kCGEventFlagMaskCommand);
-    CGEventSetFlags(keyUp, kCGEventFlagMaskCommand);
-
-    CGEventPost(kCGHIDEventTap, keyDown);
-    CGEventPost(kCGHIDEventTap, keyUp);
-
-    if (keyDown != NULL) CFRelease(keyDown);
-    if (keyUp != NULL) CFRelease(keyUp);
-    if (source != NULL) CFRelease(source);
-}
-
-int gedaPaste(void) {
-    @autoreleasepool {
-        if (!AXIsProcessTrusted()) {
-            return -1; // caller surfaces the permission requirement
+        if (gRememberedPID == 0) {
+            return 0;
+        }
+        NSRunningApplication *target =
+            [NSRunningApplication runningApplicationWithProcessIdentifier:gRememberedPID];
+        if (target == nil) {
+            return 0;
+        }
+        if ([target isActive]) {
+            return 1;
         }
 
-        NSRunningApplication *target = nil;
-        if (gRememberedPID != 0) {
-            target = [NSRunningApplication runningApplicationWithProcessIdentifier:gRememberedPID];
+        [target activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+
+        // Activation is asynchronous. A caller that types into the target
+        // immediately would reach the wrong app, so wait for it to take focus.
+        for (int i = 0; i < 40 && ![target isActive]; i++) {
+            usleep(10 * 1000);
         }
-
-        if (target != nil && ![target isActive]) {
-            [target activateWithOptions:NSApplicationActivateIgnoringOtherApps];
-
-            // Give the target a moment to actually take focus; sending the
-            // keystroke too early delivers it to the wrong app.
-            for (int i = 0; i < 40 && ![target isActive]; i++) {
-                usleep(10 * 1000);
-            }
-            usleep(40 * 1000);
-        }
-
-        sendPasteKeystroke();
-        return 0;
+        return [target isActive] ? 1 : 0;
     }
 }

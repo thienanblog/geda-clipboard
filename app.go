@@ -722,6 +722,18 @@ func (a *App) use(id string, pasteBack bool) error {
 		return nil
 	}
 
+	// A build with no keystroke path still puts the user back where they were
+	// working, so the entry is one shortcut away. Reporting a failure here
+	// instead would name a permission this build deliberately cannot ask for.
+	if !clipboard.PasteSupported() {
+		time.Sleep(80 * time.Millisecond)
+		clipboard.RestoreFocus()
+		if cfg.NotifyOnPaste {
+			a.notifyUsed(item, "Copied to clipboard", "Press "+pasteChord()+" to paste")
+		}
+		return nil
+	}
+
 	// Give the window a moment to actually give up focus.
 	time.Sleep(80 * time.Millisecond)
 
@@ -851,7 +863,12 @@ type Environment struct {
 	ModifierName string `json:"modifierName"`
 	Version      string `json:"version"`
 	// CanPaste reports whether automatic paste-back is currently permitted.
+	// It is always false when PasteSupported is false.
 	CanPaste bool `json:"canPaste"`
+	// PasteSupported reports whether this build has a paste-back path at all.
+	// The Mac App Store build does not, so the UI must not offer a permission
+	// that would never be used.
+	PasteSupported bool `json:"pasteSupported"`
 	// NotificationStatus is one of "authorized", "denied", "notDetermined" or
 	// "unknown". Copy/paste alerts are silently dropped unless authorized.
 	NotificationStatus string `json:"notificationStatus"`
@@ -877,6 +894,7 @@ func (a *App) Env() Environment {
 		ModifierName:       mod,
 		Version:            appVersion,
 		CanPaste:           clipboard.HasPastePermission(false),
+		PasteSupported:     clipboard.PasteSupported(),
 		NotificationStatus: string(notify.Permission()),
 		HotkeyError:        hotkeyErr,
 	}
@@ -908,6 +926,13 @@ func (a *App) SendTestNotification() error {
 		Body:     "You will see an alert like this each time you copy or paste.",
 	})
 }
+
+// PasteSupported reports whether this build pastes an entry back by itself.
+// The Mac App Store build does not: App Review found that the Accessibility
+// permission a synthetic keystroke needs may not be used to automate other
+// applications, so that path is compiled out there. Selecting an entry copies
+// it and returns focus to the app the user came from instead.
+func (a *App) PasteSupported() bool { return clipboard.PasteSupported() }
 
 // RequestPastePermission asks the OS for permission to synthesise keystrokes,
 // prompting the user if necessary. Returns the resulting state.

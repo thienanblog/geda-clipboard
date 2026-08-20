@@ -2,9 +2,10 @@
 //
 // The shortcut must work without any permission the user has to grant first.
 // A clipboard manager whose only way in is a shortcut is unreachable until
-// that shortcut registers, and on macOS the App Store build cannot ask for
-// Accessibility before it has shown the user anything. Each platform therefore
-// uses the API that claims a system-wide shortcut outright -- Carbon's
+// that shortcut registers, and the macOS App Store build asks for no
+// Accessibility permission at all: App Review forbids using it to automate
+// other applications, so nothing in that build may depend on it. Each platform
+// therefore uses the API that claims a system-wide shortcut outright -- Carbon's
 // RegisterEventHotKey on macOS, RegisterHotKey on Windows -- rather than a
 // keyboard event tap, which observes every keystroke in the session and is
 // gated behind Accessibility for that reason.

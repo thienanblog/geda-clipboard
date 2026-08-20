@@ -59,7 +59,7 @@ Editable without a new build, so this is the field to use for anything
 time-sensitive.
 
 ```
-Everything you copy, one shortcut away. Search it, preview it, and paste it straight back into the app you were working in. Nothing ever leaves your Mac.
+Everything you copy, one shortcut away. Search it, preview it, and put it back on your clipboard in the app you were working in. Nothing ever leaves your Mac.
 ```
 
 ## 5. Description (≤4000)
@@ -67,16 +67,16 @@ Everything you copy, one shortcut away. Search it, preview it, and paste it stra
 ```
 Geda Clipboard keeps a searchable history of everything you copy, and puts it one keystroke away.
 
-Press ⇧⌘V and the popup opens right where your pointer is, on whichever display it happens to be on. Type to narrow the list, press Return, and the entry goes straight back into the app you were working in.
+Press ⇧⌘V and the popup opens right where your pointer is, on whichever display it happens to be on. Type to narrow the list and press Return: the entry is on your clipboard and you are back in the app you were working in, one ⌘V from having it there.
 
-It also tells you what it caught. Every copy and every paste posts a notification showing the app it came from and a preview of the content, so you always know what is on your clipboard.
+It also tells you what it caught. Every copy, and every entry you pick out of the history, posts a notification showing the app it came from and a preview of the content, so you always know what is on your clipboard.
 
 FEATURES
 
 • Searchable history of text and images, with thumbnails
 • The popup opens at the pointer, or under the menu bar icon, whichever you prefer
-• Notifications on copy and on paste, each one switchable on its own
-• Pastes back into the app you came from, without you reaching for ⌘V
+• Notifications on copy and on reuse, each one switchable on its own
+• Choosing an entry returns you to the app you came from, so pasting is one ⌘V
 • Copying the same thing again bumps the entry you already have and raises its counter, instead of filling the list with duplicates
 • Every entry records the app it came from, with its icon, and when you first and last copied it
 • Point at any row for a card with the full text, its length, and its history
@@ -93,7 +93,7 @@ Password managers are skipped automatically. They mark what they put on the clip
 
 PERMISSIONS
 
-Notifications, so the copy and paste alerts can reach you. Accessibility, so Geda can press ⌘V on your behalf and land the entry back where you were typing. Both are optional: without them the app still keeps your history and still puts entries on the clipboard for you to paste yourself. The keyboard shortcut that opens the popup needs neither, and works from first launch.
+One, and it is optional: Notifications, so the copy and reuse alerts can reach you. Decline it and everything else still works; the alerts are simply not shown. Geda asks for nothing else. It does not use Accessibility, it reads no other application, and the keyboard shortcut that opens the popup needs no permission at all, so it works from first launch.
 
 REQUIREMENTS
 
@@ -222,7 +222,9 @@ Geda Clipboard is a menu bar utility. It has no window of its own and no Dock ic
 
 Copy some text in any app first so the history has something in it.
 
-The app asks for two optional permissions. Notifications are used for the alert shown on each copy and paste. Accessibility is used only to send a Command-V keystroke so a chosen entry lands back in the app the user was working in; it is not used to read other applications. Both can be declined and the app remains fully functional apart from those two conveniences.
+The app asks for one optional permission: Notifications, for the alert shown when something is copied or reused. It can be declined and the app remains fully functional apart from that alert.
+
+This build requests no Accessibility permission and contains no Accessibility code. Submission 989d447d (version 0.7.0, build 5) was rejected under guideline 2.4.5 because the app used Accessibility to send a Command-V keystroke. That feature has been removed from this build entirely, along with the preferences that offered it: the keystroke path is compiled out, and the binary references no Accessibility API. Choosing an entry now copies it to the clipboard and returns the user to the application they were working in, and they press Command-V themselves.
 
 The app makes no network connections. It has no account, no analytics and no third-party SDKs, and this build contains no auto-update mechanism.
 ```

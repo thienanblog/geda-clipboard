@@ -4,7 +4,7 @@ package clipboard
 
 /*
 #cgo CFLAGS: -x objective-c -Wno-deprecated-declarations
-#cgo LDFLAGS: -framework Cocoa -framework ApplicationServices -framework CoreGraphics
+#cgo LDFLAGS: -framework Cocoa
 #include <stdlib.h>
 #include "clipboard_darwin.h"
 */
@@ -107,28 +107,6 @@ func rememberFrontmost() {
 	C.gedaRememberFrontmost()
 }
 
-// ErrNoPastePermission indicates macOS Accessibility permission is missing, so
-// the app cannot synthesise the paste keystroke.
-var ErrNoPastePermission = errors.New("accessibility permission required to paste")
-
-func paste() error {
-	if rc := C.gedaPaste(); rc == -1 {
-		return ErrNoPastePermission
-	}
-	return nil
-}
-
-func hasPastePermission(prompt bool) bool {
-	p := C.int(0)
-	if prompt {
-		p = 1
-	}
-	return C.gedaHasAccessibility(p) != 0
-}
-
-func openPastePermissionSettings() error {
-	if C.gedaOpenAccessibilitySettings() == 0 {
-		return errors.New("could not open System Settings")
-	}
-	return nil
+func restoreFocus() bool {
+	return C.gedaActivateRemembered() != 0
 }

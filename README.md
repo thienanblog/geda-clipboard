@@ -147,12 +147,21 @@ you in **Preferences** when either is missing.
 | Feature | Permission | Where |
 | --- | --- | --- |
 | Notifications on copy/paste | Notifications | System Settings › Notifications › Geda Clipboard |
-| Pasting automatically | Accessibility | System Settings › Privacy & Security › Accessibility |
+| Pasting automatically (direct download only) | Accessibility | System Settings › Privacy & Security › Accessibility |
 
 Without Accessibility the app still copies the entry to the clipboard — you just
 paste it yourself. Without Notifications, history still works but the alerts are
 silently dropped, which is why Preferences surfaces the status and offers a
 **Send a test notification** button.
+
+The App Store build does not paste for you and never asks for Accessibility.
+Sending ⌘V to another application is what that permission is for, and App
+Review rejected it under guideline 2.4.5, which reserves Accessibility for
+features that assist people with disabilities. That build is compiled without
+the `axpaste` build tag, so it contains no Accessibility code at all and hides
+the preferences that would offer it; choosing an entry copies it and returns
+focus to the app you came from, leaving you one ⌘V away. The build published
+here and on Homebrew carries the tag and pastes automatically.
 
 Both permissions are optional, and neither gates the shortcut: opening the popup
 uses the system shortcut API, which claims one combination rather than watching

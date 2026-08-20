@@ -20,6 +20,11 @@ const cfg = ref<settings.Settings | null>(null)
 const status = ref('')
 const capturingHotkey = ref(false)
 const canPaste = ref(true)
+/** False in the Mac App Store build, which has no paste-back path: the
+ *  Accessibility permission it would need may not be used to automate other
+ *  applications. Every control that talks about that permission is hidden
+ *  rather than shown as unavailable, because there is nothing to grant. */
+const pasteSupported = ref(true)
 const hotkeyError = ref('')
 const notifyStatus = ref('unknown')
 let statusTimer: number | undefined
@@ -61,6 +66,7 @@ async function load(): Promise<void> {
   cfg.value = await App.GetSettings()
   ignoredText.value = (cfg.value.ignoredApps ?? []).join('\n')
   canPaste.value = props.env?.canPaste ?? true
+  pasteSupported.value = props.env?.pasteSupported ?? true
   hotkeyError.value = props.env?.hotkeyError ?? ''
   try {
     notifyStatus.value = await App.NotificationStatus()
@@ -75,10 +81,12 @@ async function load(): Promise<void> {
  *  where the user goes to fix this and where they come back to, so re-reading
  *  the state on focus is enough to clear them at the moment they look. */
 async function refreshPermissions(): Promise<void> {
-  try {
-    canPaste.value = await App.PastePermission()
-  } catch {
-    // Leave the last known answer in place; a failed check is not a denial.
+  if (pasteSupported.value) {
+    try {
+      canPaste.value = await App.PastePermission()
+    } catch {
+      // Leave the last known answer in place; a failed check is not a denial.
+    }
   }
   try {
     notifyStatus.value = await App.NotificationStatus()
@@ -285,9 +293,13 @@ onUnmounted(() => {
           </label>
           <label class="check">
             <input v-model="cfg.notifyOnPaste" type="checkbox" @change="save" />
-            <span>
+            <span v-if="pasteSupported">
               Notify when an entry is pasted
               <em>Confirms which app received the paste.</em>
+            </span>
+            <span v-else>
+              Notify when an entry is reused
+              <em>Confirms the entry is on the clipboard and ready to paste.</em>
             </span>
           </label>
 
@@ -298,13 +310,17 @@ onUnmounted(() => {
 
         <section>
           <h2>Behaviour</h2>
-          <label class="check">
+          <label v-if="pasteSupported" class="check">
             <input v-model="cfg.pasteOnSelect" type="checkbox" @change="save" />
             <span>
               Paste immediately when an entry is chosen
               <em>When off, choosing an entry only puts it on the clipboard.</em>
             </span>
           </label>
+          <p v-else class="hint">
+            Choosing an entry copies it and returns you to the app you were working in,
+            so it takes one {{ env?.modifierName ?? '⌘' }}V to paste.
+          </p>
           <label class="check">
             <input v-model="cfg.captureImages" type="checkbox" @change="save" />
             <span>
@@ -396,7 +412,7 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section v-if="!canPaste">
+        <section v-if="pasteSupported && !canPaste">
           <h2>Permission needed</h2>
           <p class="hint warn">
             Pasting automatically requires Accessibility permission. Without it, choosing an
@@ -473,13 +489,14 @@ onUnmounted(() => {
           </div>
           <p class="blurb">
             A menu bar clipboard manager: it keeps what you copy, tells you when it does, and
-            pastes any earlier entry straight back into the app you were using.
+            brings any earlier entry back to the app you were using.
           </p>
           <dl class="about-meta">
             <dt>Platform</dt>
             <dd>{{ env?.platform ?? '—' }}</dd>
             <dt>Automatic paste</dt>
-            <dd>{{ canPaste ? 'Permitted' : 'Needs Accessibility permission' }}</dd>
+            <dd v-if="!pasteSupported">Not in this build</dd>
+            <dd v-else>{{ canPaste ? 'Permitted' : 'Needs Accessibility permission' }}</dd>
             <dt>Notifications</dt>
             <dd>{{ notifyStatus === 'authorized' ? 'Permitted' : notifyStatus === 'denied' ? 'Turned off' : notifyStatus === 'notDetermined' ? 'Not granted yet' : 'Unknown' }}</dd>
           </dl>

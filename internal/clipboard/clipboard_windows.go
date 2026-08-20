@@ -275,10 +275,6 @@ func rememberFrontmost() {
 	rememberMu.Unlock()
 }
 
-// ErrNoPastePermission exists for API parity with macOS; Windows needs no
-// permission to synthesise input, so it is never returned.
-var ErrNoPastePermission = errors.New("permission required to paste")
-
 // Virtual key codes and SendInput structures.
 const (
 	vkControl = 0x11
@@ -383,8 +379,24 @@ func waitForForeground(hwnd uintptr, timeout time.Duration) bool {
 	}
 }
 
+func pasteSupported() bool { return true }
+
 func hasPastePermission(prompt bool) bool { return true }
 
 // Windows gates nothing behind a permission here, so there is no pane to open.
 // hasPastePermission never reports false, so the UI never offers the button.
 func openPastePermissionSettings() error { return nil }
+
+// restoreFocus refocuses the remembered window. Windows pastes on its own, so
+// this exists for API parity and for callers that only want the focus change.
+func restoreFocus() bool {
+	rememberMu.Lock()
+	target := rememberedWindow
+	rememberMu.Unlock()
+
+	if target == 0 {
+		return false
+	}
+	procSetForegroundWindow.Call(target)
+	return waitForForeground(target, 400*time.Millisecond)
+}

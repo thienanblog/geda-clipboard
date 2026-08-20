@@ -37,7 +37,7 @@ if [ ! -d "$framework_src" ]; then
   exit 1
 fi
 
-echo "==> Building (universal, -tags sparkle)"
+echo "==> Building (universal, -tags sparkle,axpaste)"
 # Wails generates its TypeScript bindings by linking a throwaway binary in
 # /tmp and running it. That binary pulls in Sparkle along with the rest of the
 # app, but it is nowhere near the framework and has no rpath of its own, so it
@@ -47,7 +47,12 @@ echo "==> Building (universal, -tags sparkle)"
 # from this machine.
 export DYLD_FRAMEWORK_PATH="$repo_root/build/darwin/Frameworks"
 
-wails build -clean -platform darwin/universal -tags sparkle
+# axpaste adds the Cmd+V keystroke that lands a chosen entry back in the app
+# the user came from. It is a Developer ID feature only: the keystroke needs
+# Accessibility permission, and App Review rejected that under guideline 2.4.5,
+# so scripts/package-appstore.sh builds without the tag and then proves no
+# Accessibility symbol survived.
+wails build -clean -platform darwin/universal -tags sparkle,axpaste
 
 echo "==> Embedding Sparkle"
 mkdir -p "$app/Contents/Frameworks"

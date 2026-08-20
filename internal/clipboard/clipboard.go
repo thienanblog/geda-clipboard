@@ -9,6 +9,7 @@ package clipboard
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -73,9 +74,33 @@ func AppIconPNG(bundleID string, px int) []byte { return appIconPNG(bundleID, px
 // Call this before showing the popup, which necessarily steals focus.
 func RememberFrontmost() { rememberFrontmost() }
 
+// RestoreFocus brings the app captured by RememberFrontmost back to the front,
+// reporting whether it got there. It needs no permission on either platform,
+// which is what makes it the fallback when Paste is unavailable: the entry is
+// on the clipboard and the user presses the paste shortcut themselves, in the
+// app they were working in rather than in whatever the window server picked.
+func RestoreFocus() bool { return restoreFocus() }
+
+// PasteSupported reports whether this build can paste an entry back by itself.
+// It is false in the Mac App Store build, which is compiled without the
+// axpaste tag because App Review forbids using Accessibility to automate other
+// applications. Callers must offer the copy-and-refocus path instead rather
+// than reporting a failure the user cannot fix.
+func PasteSupported() bool { return pasteSupported() }
+
 // Paste refocuses the app captured by RememberFrontmost and sends the paste
-// keystroke to it.
+// keystroke to it. Returns ErrPasteUnsupported when the build has no keystroke
+// path, and ErrNoPastePermission when the OS withholds permission for one.
 func Paste() error { return paste() }
+
+// ErrNoPastePermission reports that the OS withholds permission to synthesise
+// the paste keystroke. Only macOS gates this, behind Accessibility; the
+// Windows implementation never returns it.
+var ErrNoPastePermission = errors.New("permission required to paste")
+
+// ErrPasteUnsupported reports that this build has no keystroke path at all, so
+// no permission would change the outcome.
+var ErrPasteUnsupported = errors.New("this build cannot paste automatically")
 
 // HasPastePermission reports whether the OS allows this process to synthesise
 // keystrokes. When prompt is true the user may be asked to grant it.

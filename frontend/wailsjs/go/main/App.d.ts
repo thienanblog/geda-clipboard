@@ -41,6 +41,8 @@ export function PasteItem(arg1:string):Promise<void>;
 
 export function PastePermission():Promise<boolean>;
 
+export function PasteSupported():Promise<boolean>;
+
 export function PopupGutter():Promise<number>;
 
 export function PopupHeight():Promise<number>;
