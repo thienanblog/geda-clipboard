@@ -9,6 +9,17 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The popup opens with the caret in the search field, and the first Down
+  selects the newest entry.** The view switch that told the frontend to focus
+  the search field was emitted before the window was shown and focused, so the
+  web view handed the caret back to the document and typing was lost. The
+  frontend now claims the field from a new event emitted once the window is on
+  screen, and again whenever the window regains focus. The first Down after
+  opening the popup, or after changing the search, also stepped past the row
+  that was already highlighted; it now selects that row.
+
 ## [0.7.2] - 2026-08-15
 
 ### Fixed
