@@ -9,6 +9,22 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-20
+
+### Changed
+
+- **The Mac App Store build no longer pastes an entry back by itself.** App
+  Review rejected 0.7.0 under guideline 2.4.5: sending Cmd+V to another
+  application needs Accessibility permission, and Accessibility may not be used
+  to automate other apps. That build therefore ships without the keystroke
+  path, asks for no Accessibility permission, and hides the preferences that
+  offered it. Choosing an entry copies it and returns focus to the app the
+  user came from, so pasting is one shortcut they press themselves. The
+  Developer ID build published on GitHub and Homebrew is unchanged and still
+  pastes automatically; the keystroke now lives behind the `axpaste` build tag,
+  which packaging adds for that build only and verifies is absent from the App
+  Store one.
+
 ### Fixed
 
 - **The popup opens with the caret in the search field, and the first Down
@@ -328,7 +344,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.6.2...v0.7.0

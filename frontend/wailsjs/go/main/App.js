@@ -74,6 +74,10 @@ export function PastePermission() {
   return window['go']['main']['App']['PastePermission']();
 }
 
+export function PasteSupported() {
+  return window['go']['main']['App']['PasteSupported']();
+}
+
 export function PopupGutter() {
   return window['go']['main']['App']['PopupGutter']();
 }

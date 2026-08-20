@@ -5,6 +5,7 @@ export namespace main {
 	    modifierName: string;
 	    version: string;
 	    canPaste: boolean;
+	    pasteSupported: boolean;
 	    notificationStatus: string;
 	    hotkeyError: string;
 	
@@ -18,6 +19,7 @@ export namespace main {
 	        this.modifierName = source["modifierName"];
 	        this.version = source["version"];
 	        this.canPaste = source["canPaste"];
+	        this.pasteSupported = source["pasteSupported"];
 	        this.notificationStatus = source["notificationStatus"];
 	        this.hotkeyError = source["hotkeyError"];
 	    }

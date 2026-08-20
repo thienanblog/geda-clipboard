@@ -41,7 +41,7 @@ go run ./scripts/asc preflight \
   -version "$version" \
   -build "$build_number"
 
-echo "==> Building (universal, no sparkle tag)"
+echo "==> Building (universal, no sparkle or axpaste tag)"
 wails build -clean -platform darwin/universal
 
 # wails -clean does not empty build/bin, so a Sparkle.framework left behind by
@@ -80,6 +80,43 @@ for key in SUFeedURL SUPublicEDKey SUEnableInstallerLauncherService; do
 done
 if [ "$fail" -ne 0 ]; then
   echo "Refusing to package: this bundle would be rejected." >&2
+  exit 1
+fi
+echo "    clean"
+
+echo "==> Checking the bundle carries no Accessibility use"
+# Submission 989d447d (0.7.0 build 5) was rejected under guideline 2.4.5: the
+# app asked for Accessibility to synthesise Cmd+V, and Accessibility may not be
+# used to automate other applications. The keystroke path now lives behind the
+# axpaste build tag, which this build deliberately omits.
+#
+# Check the binary rather than the source, because that is what review looks
+# at, and because the failure this catches -- someone passing the tag here, or
+# a new call site landing in an untagged file -- is invisible in a diff. The
+# undefined symbol table is the reliable place to look: these functions come
+# from ApplicationServices and CoreGraphics, so a call to any of them leaves an
+# entry here even after the linker has stripped everything it can.
+undefined="$(nm -u "$app/Contents/MacOS/Geda Clipboard" 2>/dev/null || true)"
+for symbol in _AXIsProcessTrusted _AXIsProcessTrustedWithOptions \
+              _CGEventCreateKeyboardEvent _CGEventPost _CGEventSourceCreate \
+              _CGEventTapCreate; do
+  case "$undefined" in
+    *"$symbol"*)
+      echo "    The executable references $symbol." >&2
+      fail=1
+      ;;
+  esac
+done
+# The settings deep link only exists to send the user to the Accessibility
+# list. Finding it means UI for a permission this build must not ask for.
+case "$(strings -a "$app/Contents/MacOS/Geda Clipboard" 2>/dev/null || true)" in
+  *Privacy_Accessibility*)
+    echo "    The executable still links to the Accessibility settings pane." >&2
+    fail=1
+    ;;
+esac
+if [ "$fail" -ne 0 ]; then
+  echo "Refusing to package: this bundle would be rejected under 2.4.5." >&2
   exit 1
 fi
 echo "    clean"

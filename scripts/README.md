@@ -26,6 +26,12 @@ unsigned app.
 Notarization is not done here. CI does it, so an App Store Connect key never
 has to sit on a developer machine.
 
+This build is made with `-tags sparkle,axpaste`. Both tags are additive:
+`sparkle` adds the updater and `axpaste` adds the Cmd+V keystroke that lands a
+chosen entry back in the app the user came from. Neither belongs in an App
+Store submission, and forgetting one yields a build without that feature rather
+than a submission carrying it.
+
 ## `package-appstore.sh` — the Mac App Store build
 
 ```bash
@@ -35,6 +41,13 @@ INSTALLER_IDENTITY="3rd Party Mac Developer Installer: An Vu (88BTYX26S4)" \
 PROFILE=~/path/Geda_Clipboard_MAS.provisionprofile \
   ./scripts/package-appstore.sh
 ```
+
+This build is made with no tags at all, so it carries neither Sparkle nor the
+keystroke path. The script then proves both are absent from the finished
+binary, because App Review inspects the bundle rather than the source: an
+updater framework is guideline 2.4.5, and so is using Accessibility to send
+Cmd+V to another application, which is what rejected version 0.7.0. See
+`internal/clipboard/clipboard_nopaste_darwin.go`.
 
 `BUILD_NUMBER` has to increase on every upload; App Store Connect rejects a
 `CFBundleVersion` it has seen before, and a rejected review means uploading

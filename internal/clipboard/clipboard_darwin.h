@@ -2,6 +2,10 @@
 #define GEDA_CLIPBOARD_DARWIN_H
 
 // All returned char*/void* buffers are malloc'd and owned by the caller.
+//
+// Nothing declared here touches Accessibility. The keystroke path lives in
+// clipboard_paste_darwin.h, behind the axpaste build tag, so a build made
+// without that tag carries no Accessibility symbol at all.
 
 long long gedaChangeCount(void);
 
@@ -16,11 +20,8 @@ void gedaFrontmost(char **name, char **bundleID);
 void *gedaAppIconPNG(const char *bundleID, int px, int *outLen);
 
 void gedaRememberFrontmost(void);
-int gedaPaste(void);
-int gedaHasAccessibility(int prompt);
 
-// Reveals the Accessibility list in System Settings. Returns 1 when the pane
-// was opened.
-int gedaOpenAccessibilitySettings(void);
+// Refocuses the remembered application. Returns 1 when it holds focus.
+int gedaActivateRemembered(void);
 
 #endif
