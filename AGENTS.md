@@ -95,9 +95,11 @@
 - The Homebrew cask source is the template in `scripts/update-cask.sh`, not the
   generated cask in the separate tap repository. Its checksum must come from
   the published archive, and prereleases must not update the tap.
-- App Store `CFBundleVersion` values are single use. A released marketing
-  version is also final; shipping another change requires a new marketing
-  version in both version sources, not only a higher build number.
+- App Store `CFBundleVersion` values are app-wide, not scoped to a marketing
+  version. Before packaging, choose `BUILD_NUMBER` higher than every uploaded
+  build; `scripts/package-appstore.sh` checks this when credentials are
+  available. A released marketing version is also final; shipping another
+  change requires a new marketing version in both version sources.
 - Keep `build/appstore/metadata.md` synchronized with user-visible behavior and
   the public privacy, support, and terms pages under `docs/`.
 

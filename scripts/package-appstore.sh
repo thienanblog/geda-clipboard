@@ -23,7 +23,7 @@ cd "$repo_root"
 
 app="build/bin/Geda Clipboard.app"
 version="$(jq -r .info.productVersion wails.json)"
-build_number="${BUILD_NUMBER:?set BUILD_NUMBER; App Store Connect rejects a CFBundleVersion it has seen before}"
+build_number="${BUILD_NUMBER:?set BUILD_NUMBER higher than every previously uploaded CFBundleVersion}"
 app_identity="${APP_IDENTITY:?set APP_IDENTITY}"
 installer_identity="${INSTALLER_IDENTITY:?set INSTALLER_IDENTITY}"
 profile="${PROFILE:?set PROFILE to the Mac App Store provisioning profile}"
@@ -31,10 +31,11 @@ pkg="geda-clipboard-$version.pkg"
 
 # Ask App Store Connect what it already has before spending ten minutes on a
 # universal build. Both failures this catches are invisible until after the
-# upload and the processing pass: a CFBundleVersion that has been seen before,
-# and -- the expensive one -- a marketing version that has already been
-# released, which no build number can reopen. Skipped, with a warning, when the
-# API credentials are not in the environment.
+# upload and the processing pass: a CFBundleVersion that is not higher than
+# every previous upload, including older marketing versions, and -- the
+# expensive one -- a marketing version that has already been released, which
+# no build number can reopen. Skipped, with a warning, when the API credentials
+# are not in the environment.
 echo "==> Checking the version against App Store Connect"
 go run ./scripts/asc preflight \
   -bundle-id com.geda.clipboard \

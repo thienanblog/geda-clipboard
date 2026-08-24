@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"testing"
+)
 
 // The whole point of comparing components numerically is the cases a string
 // comparison gets backwards, so those are what this covers: build 9 against
@@ -55,5 +60,33 @@ func TestReleasedStatesBlock(t *testing.T) {
 		if releasedStates[state] {
 			t.Errorf("%s is editable and must not count as released", state)
 		}
+	}
+}
+
+func TestBuildsQueriesEveryMarketingVersion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/builds" {
+			t.Errorf("request path = %q, want /v1/builds", r.URL.Path)
+		}
+		query := r.URL.Query()
+		if got := query.Get("filter[app]"); got != "app/123" {
+			t.Errorf("app filter = %q, want app/123", got)
+		}
+		if _, ok := query["filter[preReleaseVersion.version]"]; ok {
+			t.Error("build request must not filter by marketing version")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"attributes":{"version":"6"}},{"attributes":{"version":"2"}}]}`))
+	}))
+	defer server.Close()
+
+	c := &client{http: server.Client(), baseURL: server.URL}
+	got, err := c.builds("app/123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"6", "2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("builds() = %v, want %v", got, want)
 	}
 }

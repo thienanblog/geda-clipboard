@@ -3,9 +3,9 @@
 //
 // Two rules, and the second one is the reason this exists at all:
 //
-//   - A CFBundleVersion is single use. App Store Connect rejects a build whose
-//     number it has already seen for the same marketing version, and it does so
-//     after the upload and the processing pass, which is a slow way to find out.
+//   - A CFBundleVersion is single use for the app and must be higher than every
+//     previous upload, including builds uploaded under an older marketing
+//     version. App Store Connect reports this only after the upload.
 //
 //   - A marketing version is single use too, and far less forgiving. Once
 //     CFBundleShortVersionString has been released it can never be submitted
@@ -145,29 +145,29 @@ build number will not reopen it. To ship a change:
 		}
 	}
 
-	builds, err := client.builds(appID, version)
+	builds, err := client.builds(appID)
 	if err != nil {
 		return err
 	}
 	highest := ""
 	for _, b := range builds {
 		if b == build {
-			return fmt.Errorf("build %s has already been uploaded for version %s; "+
-				"App Store Connect rejects a CFBundleVersion it has seen before, so set BUILD_NUMBER higher", build, version)
+			return fmt.Errorf("build %s has already been uploaded; "+
+				"App Store Connect rejects a CFBundleVersion it has seen before, so set BUILD_NUMBER higher", build)
 		}
 		if highest == "" || compareVersions(b, highest) > 0 {
 			highest = b
 		}
 	}
 	if highest != "" && compareVersions(build, highest) <= 0 {
-		return fmt.Errorf("build %s is not higher than %s, the highest already uploaded for version %s; "+
-			"set BUILD_NUMBER to %s or more", build, highest, version, nextAfter(highest))
+		return fmt.Errorf("build %s is not higher than %s, the highest build already uploaded for this app; "+
+			"set BUILD_NUMBER to %s or more", build, highest, nextAfter(highest))
 	}
 
 	if highest == "" {
-		fmt.Printf("    No builds uploaded yet for version %s; %s is free.\n", version, build)
+		fmt.Printf("    No builds uploaded yet for this app; %s is free.\n", build)
 	} else {
-		fmt.Printf("    Highest build uploaded for version %s is %s; %s is free.\n", version, highest, build)
+		fmt.Printf("    Highest build uploaded for this app is %s; %s is free.\n", highest, build)
 	}
 	return nil
 }
@@ -179,8 +179,9 @@ build number will not reopen it. To ship a change:
 var errNoCredentials = errors.New("no App Store Connect credentials in the environment")
 
 type client struct {
-	token string
-	http  *http.Client
+	token   string
+	http    *http.Client
+	baseURL string
 }
 
 func newClient() (*client, error) {
@@ -212,7 +213,11 @@ func newClient() (*client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &client{token: token, http: &http.Client{Timeout: 30 * time.Second}}, nil
+	return &client{
+		token:   token,
+		http:    &http.Client{Timeout: 30 * time.Second},
+		baseURL: apiBase,
+	}, nil
 }
 
 // signJWT builds the ES256 token App Store Connect authenticates with.
@@ -278,7 +283,7 @@ func signJWT(p8 []byte, keyID, issuer string) (string, error) {
 }
 
 func (c *client) get(path string, out any) error {
-	req, err := http.NewRequest(http.MethodGet, apiBase+path, nil)
+	req, err := http.NewRequest(http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
 		return err
 	}
@@ -360,9 +365,11 @@ func (c *client) versions(appID string) ([]versionInfo, error) {
 	return versions, nil
 }
 
-// builds returns the CFBundleVersion of every build already uploaded under the
-// given marketing version.
-func (c *client) builds(appID, version string) ([]string, error) {
+// builds returns every CFBundleVersion already uploaded for the app. Apple's
+// ordering requirement spans marketing versions, so filtering by
+// preReleaseVersion.version would miss an older build that still sets the
+// minimum accepted number.
+func (c *client) builds(appID string) ([]string, error) {
 	var out struct {
 		Data []struct {
 			Attributes struct {
@@ -370,9 +377,7 @@ func (c *client) builds(appID, version string) ([]string, error) {
 			} `json:"attributes"`
 		} `json:"data"`
 	}
-	path := "/v1/builds?filter[app]=" + url.QueryEscape(appID) +
-		"&filter[preReleaseVersion.version]=" + url.QueryEscape(version) +
-		"&limit=200"
+	path := "/v1/builds?filter[app]=" + url.QueryEscape(appID) + "&limit=200"
 	if err := c.get(path, &out); err != nil {
 		return nil, err
 	}

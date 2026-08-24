@@ -49,9 +49,9 @@ updater framework is guideline 2.4.5, and so is using Accessibility to send
 Cmd+V to another application, which is what rejected version 0.7.0. See
 `internal/clipboard/clipboard_nopaste_darwin.go`.
 
-`BUILD_NUMBER` has to increase on every upload; App Store Connect rejects a
-`CFBundleVersion` it has seen before, and a rejected review means uploading
-again under the same marketing version.
+`BUILD_NUMBER` has to increase on every upload, including uploads under a new
+marketing version. App Store Connect rejects a `CFBundleVersion` that is not
+higher than every build previously uploaded for the app.
 
 Before it builds anything, the script runs `scripts/asc` against App Store
 Connect and refuses a version that would be rejected. Set the API credentials
@@ -66,8 +66,9 @@ AC_API_ISSUER_ID=<uuid from Users and Access, Integrations> \
 
 Without them the check prints a warning and skips, so a fork can still package.
 With them it catches the two failures that are otherwise invisible until after
-the upload and the processing pass: a build number already used, and a
-marketing version that has already been released. The second one cannot be
+the upload and the processing pass: a build number that is not higher than
+every previous upload, and a marketing version that has already been released.
+The second one cannot be
 fixed by raising the build number — a released version is spent, and shipping
 a change means creating a new version in App Store Connect and bumping
 `wails.json` and `main.go` to match.
