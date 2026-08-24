@@ -117,12 +117,13 @@ For the first submission this field is not shown. From the second version on,
 paste that release's section from `CHANGELOG.md`, rewritten for users rather
 than for the repository.
 
-For version 0.8.1:
+For version 0.8.2:
 
 ```
 Images copied from apps that prepare clipboard data lazily are now captured
-more reliably. Geda also accepts additional macOS image formats, beyond PNG
-and TIFF.
+more reliably, including images copied from Chrome when it publishes clipboard
+metadata just before the image itself. Geda also accepts additional macOS image
+formats, beyond PNG and TIFF.
 ```
 
 ## 8. App Privacy
@@ -252,14 +253,14 @@ build number does not reopen it. `scripts/package-appstore.sh` runs
 
 - `CFBundleShortVersionString` comes from `wails.json` and must match `appVersion`.
 - `CFBundleVersion` comes from `BUILD_NUMBER` and must be strictly higher than
-  any build already uploaded for that marketing version.
-- For a new marketing version, `BUILD_NUMBER` may start again at 1.
+  every build already uploaded for this macOS app, including builds under older
+  marketing versions. It does not reset for a new version.
 
 ```bash
 AC_API_KEY_P8=~/path/AuthKey_XXXXXXXXXX.p8 \
 AC_API_KEY_ID=XXXXXXXXXX \
 AC_API_ISSUER_ID=<issuer uuid from Users and Access, Integrations> \
-BUILD_NUMBER=1 \
+BUILD_NUMBER=NEXT_BUILD_NUMBER \
 APP_IDENTITY="3rd Party Mac Developer Application: An Vu (88BTYX26S4)" \
 INSTALLER_IDENTITY="3rd Party Mac Developer Installer: An Vu (88BTYX26S4)" \
 PROFILE=~/path/Geda_Clipboard_MAS.provisionprofile \

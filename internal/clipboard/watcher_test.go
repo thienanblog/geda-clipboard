@@ -145,6 +145,28 @@ func TestTickRetriesAdvertisedLocalImageUntilDataArrives(t *testing.T) {
 	}
 }
 
+// Chrome can advance changeCount before the new pasteboard item exposes any
+// types. The macOS reader marks that empty state Pending, and the watcher must
+// keep the counter alive until the image appears behind the same change.
+func TestTickRetriesEmptyPasteboardUntilTypesArrive(t *testing.T) {
+	w, fake := newFakeWatcher()
+
+	fake.count = 7
+	fake.snap = Snapshot{Pending: true}
+	w.tick()
+
+	if len(fake.got) != 0 {
+		t.Fatalf("reported the temporarily empty pasteboard: %+v", fake.got)
+	}
+
+	fake.snap = Snapshot{Kind: KindImage, Image: []byte("png")}
+	w.tick()
+
+	if len(fake.got) != 1 || fake.got[0].Change != 7 || fake.got[0].Kind != KindImage {
+		t.Fatalf("reported snapshots = %+v, want one image for change 7", fake.got)
+	}
+}
+
 func TestTickGivesUpAfterPendingReadTicks(t *testing.T) {
 	w, fake := newFakeWatcher()
 

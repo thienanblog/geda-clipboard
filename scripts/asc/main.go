@@ -127,7 +127,8 @@ build number will not reopen it. To ship a change:
   1. Create a new version in App Store Connect, higher than %s.
   2. Bump appVersion in main.go and info.productVersion in wails.json to match.
   3. Move the Unreleased entries in CHANGELOG.md under it, tag, and release.
-  4. Package again with BUILD_NUMBER starting from 1 for that new version.`,
+  4. Package again with BUILD_NUMBER higher than every build previously
+     uploaded for this app; Mac build numbers do not reset for a new version.`,
 				version, v.State, version)
 		}
 		fmt.Printf("    Version %s exists and is editable (%s).\n", version, v.State)

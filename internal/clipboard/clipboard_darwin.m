@@ -102,6 +102,11 @@ void gedaRead(int *kind, char **text, void **img, int *imgLen,
         NSPasteboard *pb = [NSPasteboard generalPasteboard];
         NSArray<NSPasteboardType> *types = [pb types];
         if (types == nil || [types count] == 0) {
+            // Chrome can advance the pasteboard counter before pboard has
+            // published the new item's types. Treat that brief empty state as
+            // pending, or the watcher consumes the counter and never sees the
+            // image that appears behind the same change a moment later.
+            *pending = 1;
             return;
         }
 

@@ -9,10 +9,14 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
-## [0.8.1] - 2026-08-24
+## [0.8.2] - 2026-08-24
 
 ### Fixed
 
+- **Images copied from Chrome are no longer intermittently missed.** Chrome can
+  advance the macOS pasteboard counter just before the new item's types become
+  visible. Geda now treats that brief empty state as pending and retries the
+  same change instead of discarding it before the image arrives.
 - **Images copied from apps that lazily provide pasteboard data are no longer
   missed.** macOS now briefly retries a declared image whose bytes are not ready
   yet and accepts every image representation AppKit can decode, rather than
@@ -353,8 +357,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.1...HEAD
-[0.8.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.0...v0.8.1
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.0...v0.8.2
 [0.8.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.0...v0.7.1
