@@ -117,6 +117,14 @@ For the first submission this field is not shown. From the second version on,
 paste that release's section from `CHANGELOG.md`, rewritten for users rather
 than for the repository.
 
+For version 0.8.1:
+
+```
+Images copied from apps that prepare clipboard data lazily are now captured
+more reliably. Geda also accepts additional macOS image formats, beyond PNG
+and TIFF.
+```
+
 ## 8. App Privacy
 
 Answer **"No, we do not collect data from this app."** That is the whole

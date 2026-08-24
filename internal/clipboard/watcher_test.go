@@ -119,6 +119,32 @@ func TestTickRetriesUntilPayloadArrives(t *testing.T) {
 	}
 }
 
+// A local app can publish readable fallback text while its preferred lazy image
+// is still rendering. Pending must win, or the fallback consumes the change and
+// the image is lost when it arrives without another counter increment.
+func TestTickRetriesAdvertisedLocalImageUntilDataArrives(t *testing.T) {
+	w, fake := newFakeWatcher()
+
+	fake.count = 7
+	fake.snap = Snapshot{Kind: KindText, Text: "fallback", Pending: true}
+	w.tick()
+	w.tick()
+
+	if len(fake.got) != 0 {
+		t.Fatalf("reported the fallback before the image was ready: %+v", fake.got)
+	}
+
+	fake.snap = Snapshot{Kind: KindImage, Image: []byte("png")}
+	w.tick()
+
+	if len(fake.got) != 1 {
+		t.Fatalf("got %d copies, want 1", len(fake.got))
+	}
+	if fake.got[0].Change != 7 || fake.got[0].Kind != KindImage {
+		t.Errorf("reported snapshot = %+v, want image for change 7", fake.got[0])
+	}
+}
+
 func TestTickGivesUpAfterPendingReadTicks(t *testing.T) {
 	w, fake := newFakeWatcher()
 

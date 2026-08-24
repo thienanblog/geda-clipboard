@@ -16,7 +16,7 @@ var assets embed.FS
 
 // appVersion is reported in the About panel. Override at build time with
 // -ldflags "-X main.appVersion=1.2.3".
-var appVersion = "0.8.0"
+var appVersion = "0.8.1"
 
 func main() {
 	app := NewApp(trayIcon)

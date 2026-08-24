@@ -10,8 +10,9 @@
 long long gedaChangeCount(void);
 
 // Reads the pasteboard. kind: 0 none, 1 text, 2 image (PNG in img/imgLen).
+// pending is set when a supported type is declared but its data is not ready.
 void gedaRead(int *kind, char **text, void **img, int *imgLen,
-              int *concealed, int *transient, int *remote);
+              int *concealed, int *transient, int *remote, int *pending);
 
 long long gedaWriteText(const char *text);
 long long gedaWriteImage(const void *bytes, int len);

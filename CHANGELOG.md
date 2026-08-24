@@ -9,6 +9,15 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-24
+
+### Fixed
+
+- **Images copied from apps that lazily provide pasteboard data are no longer
+  missed.** macOS now briefly retries a declared image whose bytes are not ready
+  yet and accepts every image representation AppKit can decode, rather than
+  relying only on PNG or TIFF.
+
 ## [0.8.0] - 2026-08-20
 
 ### Changed
@@ -344,7 +353,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.0...v0.7.1

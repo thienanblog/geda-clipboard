@@ -32,6 +32,11 @@ type Snapshot struct {
 	Text  string
 	Image []byte // PNG
 
+	// Pending means the source's preferred supported payload is not readable
+	// yet. The watcher retries this change rather than consuming a lower-priority
+	// fallback or its one chance to capture a lazily rendered local image.
+	Pending bool
+
 	// Concealed is set when the source app marked the payload confidential,
 	// which is how password managers ask not to be recorded.
 	Concealed bool
@@ -255,14 +260,13 @@ func (w *Watcher) tick() {
 	}
 
 	snap, err := w.reader()
-	if err != nil || snap.Kind == KindNone {
-		// Nothing readable behind the change. Worth retrying only when the
-		// payload may still be on its way: the remote marker is on the
-		// pasteboard from the moment the counter moves, ahead of the data
-		// itself, so it is readable even now. Anything else -- a file copied
-		// in Finder, say -- is simply not a payload this app records, and
-		// re-reading it every tick for three seconds would be waste.
-		if err == nil && !snap.Remote {
+	if err != nil || snap.Pending || snap.Kind == KindNone {
+		// Nothing readable behind the change. Retry only when the read failed
+		// outright or the pasteboard says a payload is still expected. Remote
+		// copies arrive on demand; local apps can also advertise an image before
+		// their lazy data provider finishes rendering it. Unsupported local
+		// payloads, such as files copied in Finder, are consumed immediately.
+		if err == nil && !snap.Remote && !snap.Pending {
 			w.pendingChange = 0
 			w.pendingLeft = 0
 			return

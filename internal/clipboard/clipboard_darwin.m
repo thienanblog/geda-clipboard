@@ -36,26 +36,59 @@ long long gedaChangeCount(void) {
     }
 }
 
-// pngFromPasteboard converts whatever image representation is present into PNG.
-static NSData *pngFromPasteboard(NSPasteboard *pb) {
-    NSData *png = [pb dataForType:NSPasteboardTypePNG];
-    if (png != nil && [png length] > 0) {
-        return png;
+// AppKit can rasterise more than PNG and TIFF (for example JPEG, HEIC, PDF and
+// SVG). Source apps are not required to publish AppKit's converted TIFF flavor,
+// so match every representation NSImage can actually decode.
+static NSSet<NSPasteboardType> *readableImageTypes(void) {
+    static NSSet<NSPasteboardType> *types;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        // Process-lifetime cache. This file is compiled without ARC.
+        types = [[NSSet alloc] initWithArray:[NSImage imageTypes]];
+    });
+    return types;
+}
+
+// Converts one declared image representation into the PNG contract used by Go.
+// dataAvailable distinguishes a lazy provider from malformed image data: only
+// the former is worth retrying on the next watcher tick.
+static NSData *pngFromPasteboard(NSPasteboard *pb, NSPasteboardType type,
+                                 BOOL *dataAvailable) {
+    NSData *data = [pb dataForType:type];
+    *dataAvailable = data != nil && [data length] > 0;
+    if (!*dataAvailable) {
+        return nil;
+    }
+    if ([type isEqualToString:NSPasteboardTypePNG]) {
+        return data;
     }
 
-    NSData *tiff = [pb dataForType:NSPasteboardTypeTIFF];
-    if (tiff == nil || [tiff length] == 0) {
+    NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:data];
+    if (rep != nil) {
+        return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    }
+
+    // Vector representations such as PDF and SVG need NSImage to rasterise
+    // them before NSBitmapImageRep can encode the pixels as PNG.
+    NSImage *image = [[NSImage alloc] initWithData:data];
+    if (image == nil) {
         return nil;
     }
-    NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:tiff];
-    if (rep == nil) {
+    NSRect rect = NSMakeRect(0, 0, [image size].width, [image size].height);
+    CGImageRef cgImage = [image CGImageForProposedRect:&rect context:nil hints:nil];
+    if (cgImage == nil) {
+        [image release];
         return nil;
     }
-    return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
+    NSData *png = [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    [bitmap release];
+    [image release];
+    return png;
 }
 
 void gedaRead(int *kind, char **text, void **img, int *imgLen,
-              int *concealed, int *transient, int *remote) {
+              int *concealed, int *transient, int *remote, int *pending) {
     @autoreleasepool {
         *kind = 0;
         *text = NULL;
@@ -64,6 +97,7 @@ void gedaRead(int *kind, char **text, void **img, int *imgLen,
         *concealed = 0;
         *transient = 0;
         *remote = 0;
+        *pending = 0;
 
         NSPasteboard *pb = [NSPasteboard generalPasteboard];
         NSArray<NSPasteboardType> *types = [pb types];
@@ -91,10 +125,15 @@ void gedaRead(int *kind, char **text, void **img, int *imgLen,
                           [type isEqualToString:NSPasteboardTypeHTML] ||
                           [type isEqualToString:NSPasteboardTypeURL] ||
                           [type isEqualToString:@"public.file-url"];
-            BOOL isImage = [type isEqualToString:NSPasteboardTypePNG] ||
-                           [type isEqualToString:NSPasteboardTypeTIFF];
+            BOOL isImage = [readableImageTypes() containsObject:type];
 
             if (isText) {
+                // A previously declared image is the source app's preferred
+                // representation. Do not consume its lower-priority text
+                // fallback while the lazy image provider is still rendering.
+                if (*pending) {
+                    continue;
+                }
                 NSString *s = [pb stringForType:NSPasteboardTypeString];
                 if (s != nil && [s length] > 0) {
                     *kind = 1;
@@ -107,7 +146,8 @@ void gedaRead(int *kind, char **text, void **img, int *imgLen,
             }
 
             if (isImage) {
-                NSData *png = pngFromPasteboard(pb);
+                BOOL dataAvailable = NO;
+                NSData *png = pngFromPasteboard(pb, type, &dataAvailable);
                 if (png != nil && [png length] > 0) {
                     void *buf = malloc([png length]);
                     if (buf != NULL) {
@@ -115,18 +155,25 @@ void gedaRead(int *kind, char **text, void **img, int *imgLen,
                         *kind = 2;
                         *img = buf;
                         *imgLen = (int)[png length];
+                        *pending = 0;
                     }
                     return;
+                }
+                if (!dataAvailable) {
+                    *pending = 1;
                 }
                 continue;
             }
         }
 
-        // Nothing matched by type name; fall back to a plain string read.
-        NSString *s = [pb stringForType:NSPasteboardTypeString];
-        if (s != nil && [s length] > 0) {
-            *kind = 1;
-            *text = copyCString(s);
+        // Nothing matched by type name; fall back to a plain string only when
+        // no higher-priority image representation is still pending.
+        if (!*pending) {
+            NSString *s = [pb stringForType:NSPasteboardTypeString];
+            if (s != nil && [s length] > 0) {
+                *kind = 1;
+                *text = copyCString(s);
+            }
         }
     }
 }

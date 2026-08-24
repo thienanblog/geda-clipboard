@@ -3,6 +3,10 @@
 package clipboard
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
 	"testing"
 )
 
@@ -58,6 +62,35 @@ func TestTextRoundTrip(t *testing.T) {
 	}
 	if snap.Text != want {
 		t.Errorf("Text = %q, want %q", snap.Text, want)
+	}
+}
+
+func TestImageRoundTrip(t *testing.T) {
+	preserveClipboard(t)
+
+	img := image.NewRGBA(image.Rect(0, 0, 3, 2))
+	img.Set(1, 1, color.RGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff})
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, img); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteImage(encoded.Bytes()); err != nil {
+		t.Fatalf("WriteImage: %v", err)
+	}
+
+	snap, err := Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if snap.Kind != KindImage {
+		t.Fatalf("Kind = %v, want KindImage", snap.Kind)
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(snap.Image))
+	if err != nil {
+		t.Fatalf("returned image is not PNG: %v", err)
+	}
+	if cfg.Width != 3 || cfg.Height != 2 {
+		t.Errorf("image size = %dx%d, want 3x2", cfg.Width, cfg.Height)
 	}
 }
 
