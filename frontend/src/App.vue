@@ -10,9 +10,10 @@ import PopupView from './components/PopupView.vue'
 import SettingsView from './components/SettingsView.vue'
 
 type View = 'popup' | 'settings'
+type SettingsTab = 'general' | 'clipboard' | 'privacy' | 'statistics' | 'about'
 
 const view = ref<View>('popup')
-const settingsTab = ref<'general' | 'about'>('general')
+const settingsTab = ref<SettingsTab>('general')
 const env = ref<main.Environment | null>(null)
 
 function onBlur(): void {
@@ -21,7 +22,7 @@ function onBlur(): void {
   void App.OnWindowBlur()
 }
 
-function openSettings(tab: 'general' | 'about'): void {
+function openSettings(tab: SettingsTab): void {
   settingsTab.value = tab
   view.value = 'settings'
   void App.ShowSettings()

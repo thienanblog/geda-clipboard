@@ -129,7 +129,7 @@ The app resolves its data directory from `HOME`, so in principle
 with a clean environment, so `HOME` never arrives and the app loads the real
 history. Check what is on screen before capturing anything.
 
-The five images in the submission were taken from `frontend/dist` served
+The six images in the submission were taken from `frontend/dist` served
 statically with the Wails bindings stubbed out from the fixture, then composed
 onto 2880x1800 canvases with headless Chrome. That harness is not in the
 repository: it has to know the shape of the bound API, and a copy of that here

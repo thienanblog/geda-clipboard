@@ -21,6 +21,9 @@ were working in.
 - **Copy counting** — re-copying the same content bumps an existing entry and
   increments its counter rather than creating a duplicate. This is driven by the
   OS clipboard change counter, so an identical re-copy is still detected.
+- **Local statistics** — day, week, month and year charts split copies into
+  text, images and repeats. Only bounded counters for the latest 370 days are
+  stored, so copying more often does not make the statistics file grow.
 - **Provenance** — each entry records the app it came from, with its icon, plus
   first/last copy time.
 - **Universal Clipboard** — copies handed over from an iPhone or iPad are
@@ -186,7 +189,7 @@ The app is a menu bar accessory (`LSUIElement`), so it has no Dock icon.
 | Copy without pasting | `⌘C` |
 | Pin / unpin | `⌥P` |
 | Delete entry | `⌥⌫` |
-| Clear all | `⌥⇧⌘⌫` |
+| Clear history | `⌥⇧⌘⌫` |
 | Preferences | `⌘,` |
 | Clear search, then close | `Esc` |
 | Quit | `⌘Q` |
@@ -208,11 +211,17 @@ above.
 settings.json    preferences
 history.json     history index (text, thumbnails, metadata)
 icons.json       source-app icons, one copy per app
+statistics.json  bounded hourly and daily copy counters
 blobs/           full-size PNGs for image entries
 ```
 
 History is written atomically (temp file + rename) and saves are coalesced, so
 rapid copying does not thrash the disk.
+
+Statistics are aggregated rather than logged per event. The file holds 24
+hourly buckets for today and at most 369 earlier daily totals, with no clipboard
+content, hashes or source-application names. Its size is therefore bounded by
+time rather than copy volume.
 
 Because the index is rewritten whenever the history changes, two things are kept
 out of it: full-size images live in `blobs/`, and app icons live once per app in
@@ -235,6 +244,7 @@ internal/
                            detection, paste keystroke synthesis
   store/                   History: dedupe, copy counting, pinning, eviction,
                            persistence
+  statistics/              Bounded, content-free hourly and daily copy totals
   settings/                Preferences with validation and change callbacks
   notify/                  Native notifications (UNUserNotifications / toast)
   imageutil/               Thumbnail generation

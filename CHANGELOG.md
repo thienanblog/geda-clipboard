@@ -9,6 +9,15 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-26
+
+### Added
+
+- **Preferences are organised into General, Clipboard, Privacy, Statistics and
+  About tabs.** Statistics shows local copy totals for text, images and repeated
+  content over a day, week, month or year. It stores only bounded hourly and
+  daily counters, never clipboard content or per-copy events.
+
 ## [0.8.2] - 2026-08-24
 
 ### Fixed
@@ -357,7 +366,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.0...v0.8.2
 [0.8.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.7.1...v0.7.2

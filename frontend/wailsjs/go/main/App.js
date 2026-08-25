@@ -10,6 +10,10 @@ export function ClearAll() {
   return window['go']['main']['App']['ClearAll']();
 }
 
+export function ClearHistoryAndStatistics() {
+  return window['go']['main']['App']['ClearHistoryAndStatistics']();
+}
+
 export function CopyOnly(arg1) {
   return window['go']['main']['App']['CopyOnly'](arg1);
 }
@@ -36,6 +40,10 @@ export function FullImage(arg1) {
 
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
+}
+
+export function GetStatistics(arg1) {
+  return window['go']['main']['App']['GetStatistics'](arg1);
 }
 
 export function HidePopup() {
@@ -100,6 +108,10 @@ export function RequestNotificationPermission() {
 
 export function RequestPastePermission() {
   return window['go']['main']['App']['RequestPastePermission']();
+}
+
+export function ResetStatistics() {
+  return window['go']['main']['App']['ResetStatistics']();
 }
 
 export function SaveSettings(arg1) {
