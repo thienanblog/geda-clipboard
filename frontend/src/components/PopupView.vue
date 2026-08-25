@@ -572,7 +572,7 @@ onUnmounted(() => {
 
       <footer class="footer">
         <button class="action" type="button" @click="clearAll">
-          <span>Clear all</span>
+          <span>Clear history</span>
           <span class="accel">{{ combo(sym.alt, sym.shift, sym.cmd, sym.del) }}</span>
         </button>
         <button class="action" type="button" @click="emit('open-settings', 'general')">

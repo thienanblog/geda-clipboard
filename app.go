@@ -19,6 +19,7 @@ import (
 	"geda-clipboard/internal/imageutil"
 	"geda-clipboard/internal/notify"
 	"geda-clipboard/internal/settings"
+	"geda-clipboard/internal/statistics"
 	"geda-clipboard/internal/store"
 	"geda-clipboard/internal/tray"
 	"geda-clipboard/internal/updater"
@@ -86,6 +87,7 @@ type App struct {
 
 	settings *settings.Manager
 	store    *store.Store
+	stats    *statistics.Store
 	watcher  *clipboard.Watcher
 	hotkeys  *hotkeys.Manager
 
@@ -126,6 +128,12 @@ func NewApp(trayIcon []byte) *App {
 		log.Println("history: unavailable, running without persistence:", err)
 	}
 	a.store = st
+
+	stats, err := statistics.Open()
+	if err != nil {
+		log.Println("statistics: unavailable, running without persistence:", err)
+	}
+	a.stats = stats
 
 	return a
 }
@@ -208,6 +216,11 @@ func (a *App) OnShutdown(ctx context.Context) {
 	if a.store != nil {
 		if err := a.store.Close(); err != nil {
 			log.Println("history: final save failed:", err)
+		}
+	}
+	if a.stats != nil {
+		if err := a.stats.Close(); err != nil {
+			log.Println("statistics: final save failed:", err)
 		}
 	}
 }
@@ -313,6 +326,11 @@ func (a *App) onClipboardChange(snap clipboard.Snapshot, source clipboard.App) {
 	if err != nil {
 		log.Println("history add:", err)
 		return
+	}
+	if a.stats != nil {
+		if err := a.stats.RecordAt(string(capture.Kind), !isNew, capture.At); err != nil {
+			log.Println("statistics record:", err)
+		}
 	}
 
 	a.emitHistoryChanged()
@@ -813,13 +831,47 @@ func (a *App) Delete(id string) error {
 	return nil
 }
 
-// ClearAll removes every entry.
+// ClearAll removes every history entry. Statistics are separate so users can
+// clear either data set independently from Preferences.
 func (a *App) ClearAll() error {
 	if a.store == nil {
 		return fmt.Errorf("history unavailable")
 	}
 	a.store.Clear()
 	a.emitHistoryChanged()
+	return nil
+}
+
+// GetStatistics returns bounded, content-free activity totals for period.
+func (a *App) GetStatistics(period string) (statistics.Snapshot, error) {
+	if a.stats == nil {
+		return statistics.Snapshot{}, fmt.Errorf("statistics unavailable")
+	}
+	return a.stats.Snapshot(period)
+}
+
+// ResetStatistics removes aggregate activity totals without touching history.
+func (a *App) ResetStatistics() error {
+	if a.stats == nil {
+		return fmt.Errorf("statistics unavailable")
+	}
+	return a.stats.Reset()
+}
+
+// ClearHistoryAndStatistics removes both user-data stores while preserving
+// preferences.
+func (a *App) ClearHistoryAndStatistics() error {
+	if a.store == nil {
+		return fmt.Errorf("history unavailable")
+	}
+	if a.stats == nil {
+		return fmt.Errorf("statistics unavailable")
+	}
+	a.store.Clear()
+	a.emitHistoryChanged()
+	if err := a.stats.Reset(); err != nil {
+		return err
+	}
 	return nil
 }
 

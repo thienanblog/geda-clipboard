@@ -1,19 +1,35 @@
 <script lang="ts" setup>
-/** Preferences and About. Changes are saved as soon as they are made, which is
- *  what a menu bar utility should do -- there is no OK/Cancel. */
+/** Tabbed preferences and About. Changes are saved as soon as they are made,
+ *  which is what a menu bar utility should do -- there is no OK/Cancel. */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { main, settings } from '../../wailsjs/go/models'
 import * as App from '../../wailsjs/go/main/App'
+import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { eventToSpec, formatHotkey } from '../lib/keys'
+import StatisticsView from './StatisticsView.vue'
+
+type SettingsTab = 'general' | 'clipboard' | 'privacy' | 'statistics' | 'about'
+
+const settingsTabs: Array<{ value: SettingsTab; label: string }> = [
+  { value: 'general', label: 'General' },
+  { value: 'clipboard', label: 'Clipboard' },
+  { value: 'privacy', label: 'Privacy' },
+  { value: 'statistics', label: 'Statistics' },
+  { value: 'about', label: 'About' },
+]
+
+const privacyURL = 'https://thienanblog.github.io/geda-clipboard/privacy.html'
+const supportURL = 'https://thienanblog.github.io/geda-clipboard/support.html'
+const termsURL = 'https://thienanblog.github.io/geda-clipboard/terms.html'
 
 const props = defineProps<{
-  tab: 'general' | 'about'
+  tab: SettingsTab
   env: main.Environment | null
 }>()
 
 const emit = defineEmits<{
   (event: 'close'): void
-  (event: 'tab', value: 'general' | 'about'): void
+  (event: 'tab', value: SettingsTab): void
 }>()
 
 const cfg = ref<settings.Settings | null>(null)
@@ -172,6 +188,16 @@ async function resetDefaults(): Promise<void> {
   await save()
 }
 
+async function clearHistoryAndStatistics(): Promise<void> {
+  if (!window.confirm('Clear all clipboard history and local statistics? This cannot be undone.')) return
+  try {
+    await App.ClearHistoryAndStatistics()
+    flash('History and statistics cleared')
+  } catch (err) {
+    flash(String(err))
+  }
+}
+
 function startHotkeyCapture(): void {
   capturingHotkey.value = true
 }
@@ -247,20 +273,14 @@ onUnmounted(() => {
     <header class="header">
       <nav class="tabs">
         <button
+          v-for="item in settingsTabs"
+          :key="item.value"
           class="tab"
-          :class="{ active: tab === 'general' }"
+          :class="{ active: tab === item.value }"
           type="button"
-          @click="emit('tab', 'general')"
+          @click="emit('tab', item.value)"
         >
-          General
-        </button>
-        <button
-          class="tab"
-          :class="{ active: tab === 'about' }"
-          type="button"
-          @click="emit('tab', 'about')"
-        >
-          About
+          {{ item.label }}
         </button>
       </nav>
 
@@ -276,165 +296,59 @@ onUnmounted(() => {
       <template v-if="tab === 'general' && cfg">
         <section>
           <h2>Notifications</h2>
-
           <p v-if="notifyBlocked" class="hint warn">{{ notifyMessage }}</p>
           <div v-if="notifyBlocked" class="btn-row">
             <button class="btn" type="button" @click="fixNotifications">
               {{ notifyStatus === 'denied' ? 'Open notification settings…' : 'Allow notifications' }}
             </button>
           </div>
-
           <label class="check">
             <input v-model="cfg.notifyOnCopy" type="checkbox" @change="save" />
-            <span>
-              Notify when something is copied
-              <em>Shows the source app and a preview of the new entry.</em>
-            </span>
+            <span>Notify when something is copied<em>Shows the source app and a preview.</em></span>
           </label>
           <label class="check">
             <input v-model="cfg.notifyOnPaste" type="checkbox" @change="save" />
-            <span v-if="pasteSupported">
-              Notify when an entry is pasted
-              <em>Confirms which app received the paste.</em>
-            </span>
-            <span v-else>
-              Notify when an entry is reused
-              <em>Confirms the entry is on the clipboard and ready to paste.</em>
-            </span>
+            <span v-if="pasteSupported">Notify when an entry is pasted<em>Confirms which app received the paste.</em></span>
+            <span v-else>Notify when an entry is reused<em>Confirms the entry is ready to paste.</em></span>
           </label>
-
           <div class="btn-row">
             <button class="btn" type="button" @click="sendTest">Send a test notification</button>
           </div>
         </section>
 
         <section>
-          <h2>Behaviour</h2>
-          <label v-if="pasteSupported" class="check">
-            <input v-model="cfg.pasteOnSelect" type="checkbox" @change="save" />
-            <span>
-              Paste immediately when an entry is chosen
-              <em>When off, choosing an entry only puts it on the clipboard.</em>
-            </span>
-          </label>
-          <p v-else class="hint">
-            Choosing an entry copies it and returns you to the app you were working in,
-            so it takes one {{ env?.modifierName ?? '⌘' }}V to paste.
+          <h2>Shortcut</h2>
+          <div class="field">
+            <span class="field-label">Toggle the popup</span>
+            <button class="hotkey" :class="{ capturing: capturingHotkey }" type="button" @click="startHotkeyCapture">
+              {{ hotkeyLabel }}
+            </button>
+          </div>
+          <p v-if="hotkeyError" class="hint warn">
+            This shortcut is not active: {{ hotkeyError }}. Pick a different combination;
+            {{ iconPlacementLabel.toLowerCase() }} opens the popup in the meantime.
           </p>
-          <label class="check">
-            <input v-model="cfg.captureImages" type="checkbox" @change="save" />
-            <span>
-              Record images as well as text
-            </span>
-          </label>
-          <label class="check">
-            <input v-model="cfg.previewOnHover" type="checkbox" @change="save" />
-            <span>
-              Show details beside the list when pointing at an entry
-              <em>The card floats to the left of the popup; it costs no width.</em>
-            </span>
-          </label>
+          <p class="hint">Click the shortcut, then press the key combination you want.</p>
+        </section>
+
+        <section>
+          <h2>Application</h2>
           <label class="check">
             <input v-model="cfg.launchAtLogin" type="checkbox" @change="save" />
             <span>Launch at login</span>
           </label>
           <label v-if="isMac" class="check">
             <input v-model="cfg.showDockIcon" type="checkbox" @change="save" />
-            <span>
-              Show icon in the Dock
-              <em>Off keeps it to the menu bar; the shortcut still works.</em>
-            </span>
+            <span>Show icon in the Dock<em>Off keeps Geda in the menu bar.</em></span>
           </label>
-        </section>
-
-        <section>
-          <h2>Shortcut</h2>
-          <div class="field">
-            <span class="field-label">Toggle the popup</span>
-            <button
-              class="hotkey"
-              :class="{ capturing: capturingHotkey }"
-              type="button"
-              @click="startHotkeyCapture"
-            >
-              {{ hotkeyLabel }}
-            </button>
-          </div>
-          <p v-if="hotkeyError" class="hint warn">
-            This shortcut is not active: {{ hotkeyError }}. Pick a different
-            combination; {{ iconPlacementLabel.toLowerCase() }} opens the popup
-            in the meantime.
-          </p>
-          <p class="hint">Click the shortcut, then press the key combination you want.</p>
-        </section>
-
-        <section>
-          <h2>History</h2>
-          <div class="field">
-            <span class="field-label">Keep at most</span>
-            <input
-              v-model.number="cfg.maxItems"
-              class="num"
-              type="number"
-              min="10"
-              max="2000"
-              step="10"
-              @change="onNumberChange('maxItems')"
-            />
-            <span class="field-suffix">entries</span>
-          </div>
-          <p class="hint">Pinned entries are always kept, regardless of this limit.</p>
-        </section>
-
-        <section>
-          <h2>Privacy</h2>
-          <label class="check">
-            <input v-model="cfg.ignoreConcealed" type="checkbox" @change="save" />
-            <span>
-              Skip entries marked confidential
-              <em>This is how password managers ask to be excluded.</em>
-            </span>
-          </label>
-          <label class="check">
-            <input v-model="cfg.ignoreTransient" type="checkbox" @change="save" />
-            <span>Skip entries marked temporary by the source app</span>
-          </label>
-
-          <div class="field stacked">
-            <span class="field-label">Never record copies from these apps</span>
-            <textarea
-              v-model="ignoredText"
-              rows="4"
-              placeholder="One application name per line, e.g.&#10;1Password&#10;Keychain Access"
-              spellcheck="false"
-              @change="onIgnoredInput"
-            />
-          </div>
-        </section>
-
-        <section v-if="pasteSupported && !canPaste">
-          <h2>Permission needed</h2>
-          <p class="hint warn">
-            Pasting automatically requires Accessibility permission. Without it, choosing an
-            entry still copies it to the clipboard — you just have to paste yourself. The
-            shortcut and everything else work either way.
-          </p>
-          <div class="btn-row">
-            <button class="btn" type="button" @click="requestPastePermission">
-              Grant Accessibility permission…
-            </button>
-            <button class="btn" type="button" @click="openPasteSettings">
-              Open Accessibility settings…
-            </button>
-          </div>
-          <p class="hint">
-            Turn Geda Clipboard on in the list, then come back to this window — the
-            warning clears once macOS reports the permission.
-          </p>
         </section>
 
         <section>
           <h2>Window</h2>
+          <label class="check">
+            <input v-model="cfg.previewOnHover" type="checkbox" @change="save" />
+            <span>Show details when pointing at an entry<em>The card floats beside the popup.</em></span>
+          </label>
           <div class="field">
             <span class="field-label">Open the popup at</span>
             <select v-model="cfg.popupPlacement" class="select" @change="save">
@@ -442,50 +356,106 @@ onUnmounted(() => {
               <option value="menubar">{{ iconPlacementLabel }}</option>
             </select>
           </div>
-          <p class="hint">
-            At the pointer the popup opens wherever you are working, like a context menu.
-          </p>
-
           <div class="field">
             <span class="field-label">Popup size</span>
-            <input
-              v-model.number="cfg.popupWidth"
-              class="num"
-              type="number"
-              min="300"
-              max="1600"
-              step="20"
-              @change="onNumberChange('popupWidth')"
-            />
+            <input v-model.number="cfg.popupWidth" class="num" type="number" min="300" max="1600" step="20" @change="onNumberChange('popupWidth')" />
             <span class="field-suffix">×</span>
-            <input
-              v-model.number="cfg.popupHeight"
-              class="num"
-              type="number"
-              min="240"
-              max="1200"
-              step="20"
-              @change="onNumberChange('popupHeight')"
-            />
+            <input v-model.number="cfg.popupHeight" class="num" type="number" min="240" max="1200" step="20" @change="onNumberChange('popupHeight')" />
             <span class="field-suffix">px</span>
           </div>
         </section>
 
         <section>
-          <button class="btn subtle" type="button" @click="resetDefaults">
-            Reset all preferences
-          </button>
+          <button class="btn subtle" type="button" @click="resetDefaults">Reset all preferences</button>
         </section>
       </template>
+
+      <template v-else-if="tab === 'clipboard' && cfg">
+        <section>
+          <h2>Behaviour</h2>
+          <label v-if="pasteSupported" class="check">
+            <input v-model="cfg.pasteOnSelect" type="checkbox" @change="save" />
+            <span>Paste immediately when an entry is chosen<em>When off, choosing an entry only puts it on the clipboard.</em></span>
+          </label>
+          <p v-else class="hint">
+            Choosing an entry copies it and returns you to the app you were working in,
+            so it takes one {{ env?.modifierName ?? '⌘' }}V to paste.
+          </p>
+          <label class="check">
+            <input v-model="cfg.captureImages" type="checkbox" @change="save" />
+            <span>Record images as well as text</span>
+          </label>
+        </section>
+
+        <section>
+          <h2>History</h2>
+          <div class="field">
+            <span class="field-label">Keep at most</span>
+            <input v-model.number="cfg.maxItems" class="num" type="number" min="10" max="2000" step="10" @change="onNumberChange('maxItems')" />
+            <span class="field-suffix">entries</span>
+          </div>
+          <p class="hint">Pinned entries are always kept, regardless of this limit.</p>
+        </section>
+
+        <section v-if="pasteSupported && !canPaste">
+          <h2>Permission needed</h2>
+          <p class="hint warn">
+            Pasting automatically requires Accessibility permission. Without it, choosing an
+            entry still copies it to the clipboard and you paste it yourself.
+          </p>
+          <div class="btn-row">
+            <button class="btn" type="button" @click="requestPastePermission">Grant Accessibility permission…</button>
+            <button class="btn" type="button" @click="openPasteSettings">Open Accessibility settings…</button>
+          </div>
+        </section>
+      </template>
+
+      <template v-else-if="tab === 'privacy' && cfg">
+        <section>
+          <h2>Excluded copies</h2>
+          <label class="check">
+            <input v-model="cfg.ignoreConcealed" type="checkbox" @change="save" />
+            <span>Skip entries marked confidential<em>This is how password managers ask to be excluded.</em></span>
+          </label>
+          <label class="check">
+            <input v-model="cfg.ignoreTransient" type="checkbox" @change="save" />
+            <span>Skip entries marked temporary by the source app</span>
+          </label>
+          <div class="field stacked">
+            <span class="field-label">Never record copies from these apps</span>
+            <textarea
+              v-model="ignoredText"
+              rows="5"
+              placeholder="One application name per line, e.g.&#10;1Password&#10;Keychain Access"
+              spellcheck="false"
+              @change="onIgnoredInput"
+            />
+          </div>
+        </section>
+
+        <section>
+          <h2>Local data</h2>
+          <p class="hint">
+            Clipboard content and statistics stay on this device. Statistics contain only
+            hourly and daily counters — never content, hashes, or source applications — and
+            are automatically limited to 370 days.
+          </p>
+          <div class="btn-row">
+            <button class="btn danger" type="button" @click="clearHistoryAndStatistics">
+              Clear history and statistics…
+            </button>
+          </div>
+        </section>
+      </template>
+
+      <StatisticsView v-else-if="tab === 'statistics'" />
 
       <template v-else-if="tab === 'about'">
         <div class="about">
           <h1>Geda Clipboard</h1>
           <p class="version">Version {{ env?.version ?? '—' }}</p>
-          <div v-if="canUpdate" class="btn-row">
-            <button class="btn" type="button" @click="App.CheckForUpdates()">
-              Check for Updates…
-            </button>
+          <div v-if="canUpdate" class="btn-row about-actions">
+            <button class="btn" type="button" @click="App.CheckForUpdates()">Check for Updates…</button>
           </div>
           <p class="blurb">
             A menu bar clipboard manager: it keeps what you copy, tells you when it does, and
@@ -500,9 +470,12 @@ onUnmounted(() => {
             <dt>Notifications</dt>
             <dd>{{ notifyStatus === 'authorized' ? 'Permitted' : notifyStatus === 'denied' ? 'Turned off' : notifyStatus === 'notDetermined' ? 'Not granted yet' : 'Unknown' }}</dd>
           </dl>
-          <p class="credit">
-            Inspired by <span class="mono">Maccy</span>, built with Go and Wails.
-          </p>
+          <div class="about-links" aria-label="Legal and support links">
+            <button type="button" @click="BrowserOpenURL(privacyURL)">Privacy Policy</button>
+            <button type="button" @click="BrowserOpenURL(supportURL)">Support</button>
+            <button type="button" @click="BrowserOpenURL(termsURL)">Terms</button>
+          </div>
+          <p class="credit">Inspired by <span class="mono">Maccy</span>, built with Go and Wails.</p>
         </div>
       </template>
     </div>
@@ -528,7 +501,7 @@ onUnmounted(() => {
 }
 
 .tab {
-  padding: 4px 14px;
+  padding: 4px 10px;
   border: 0;
   border-radius: 5px;
   background: transparent;
@@ -721,6 +694,10 @@ textarea {
   color: var(--fg-dim);
 }
 
+.btn.danger {
+  color: var(--danger);
+}
+
 .about {
   padding: 22px 4px;
   text-align: center;
@@ -761,6 +738,29 @@ textarea {
 
 .about-meta dd {
   margin: 0;
+}
+
+.about-actions {
+  justify-content: center;
+}
+
+.about-links {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.about-links button {
+  padding: 3px 7px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11.5px;
+}
+
+.about-links button:hover {
+  text-decoration: underline;
 }
 
 .credit {

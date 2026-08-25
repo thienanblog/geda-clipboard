@@ -16,16 +16,17 @@
   <p class="lede">Geda Clipboard collects nothing, transmits nothing, and has no servers. Everything it records stays on your Mac.</p>
 </header>
 
-<p><strong>Last updated: 11 August 2026.</strong> This policy covers the macOS
+<p><strong>Last updated: 26 August 2026.</strong> This policy covers the macOS
 application <em>Geda Clipboard</em> ("the app"), published by Ân Vũ ("we", "us").</p>
 
 <h2>The short version</h2>
 
 <div class="callout">
-  <p>The app has no account, no analytics, no advertising, no tracking and no
-  network connection of any kind in the Mac App Store build. Your clipboard
-  history is written to a private folder on your own Mac and is never sent
-  anywhere. We cannot see it, and neither can anybody else.</p>
+  <p>The app has no account, no telemetry, no third-party analytics, no
+  advertising, no tracking and no network connection of any kind in the Mac
+  App Store build. Clipboard history and on-device usage counters are written
+  to a private folder on your own Mac and are never sent anywhere. We cannot
+  see them, and neither can anybody else.</p>
 </div>
 
 <h2>What the app stores, and where</h2>
@@ -62,6 +63,11 @@ held only on your Mac, inside the sandboxed container macOS gives the app:</p>
       <td><code>history.json</code>, on your Mac</td>
     </tr>
     <tr>
+      <td>Hourly and daily copy totals for the latest 370 days</td>
+      <td>To draw the Statistics charts for text, images and repeated copies</td>
+      <td><code>statistics.json</code>, on your Mac</td>
+    </tr>
+    <tr>
       <td>Your preferences</td>
       <td>To remember how you configured the app</td>
       <td><code>settings.json</code>, on your Mac</td>
@@ -72,6 +78,11 @@ held only on your Mac, inside the sandboxed container macOS gives the app:</p>
 
 <p>No part of this leaves your computer. There is no cloud sync, no backup
 service and no telemetry.</p>
+
+<p>The statistics file contains counters only. It does not contain clipboard
+content, content hashes, source-application names or a log of individual copy
+events. It keeps 24 hourly buckets for today and at most 369 earlier daily
+totals, so its size does not grow with the number of times you copy.</p>
 
 <h2>What the app deliberately does not record</h2>
 
@@ -139,12 +150,16 @@ withdrawn at any time in System Settings.</p>
 <ul>
   <li><strong>Delete one entry</strong> — select it in the popup and press
     <code>⌥⌫</code>.</li>
-  <li><strong>Delete everything</strong> — <em>Clear all</em> in the popup, or
-    <code>⌥⇧⌘⌫</code>.</li>
+  <li><strong>Delete all clipboard history</strong> — <em>Clear history</em> in
+    the popup, or <code>⌥⇧⌘⌫</code>. Local statistics are kept.</li>
+  <li><strong>Reset statistics</strong> — use <em>Reset statistics</em> under
+    Preferences › Statistics. Clipboard history is kept.</li>
+  <li><strong>Delete both</strong> — use <em>Clear history and statistics</em>
+    under Preferences › Privacy.</li>
   <li><strong>Limit what is kept</strong> — Preferences sets the maximum number
     of entries; older ones are discarded automatically.</li>
   <li><strong>Remove it all</strong> — deleting the app removes its container,
-    and the history with it.</li>
+    including history, statistics and preferences.</li>
 </ul>
 
 <p>Because we never receive any of it, there is nothing for you to request from
