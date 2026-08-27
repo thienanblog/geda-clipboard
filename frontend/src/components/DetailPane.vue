@@ -92,14 +92,14 @@ const deleteHint = computed(() => `Press ${combo(sym.alt, sym.del)} to delete.`)
 }
 
 .preview {
-  max-height: 170px;
+  max-height: var(--image-detail-h, 170px);
   overflow: hidden;
 }
 
 .preview img {
   display: block;
-  max-width: 100%;
-  max-height: 170px;
+  width: 100%;
+  height: var(--image-detail-h, 170px);
   border-radius: 4px;
   object-fit: contain;
 }

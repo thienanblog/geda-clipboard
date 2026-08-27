@@ -35,6 +35,8 @@ const keyboardNav = ref(false)
  *  it -- otherwise opening the popup and pressing Down skips the newest entry. */
 const primed = ref(true)
 const previewOnHover = ref(true)
+const imagePreviewSize = ref<'compact' | 'comfortable' | 'large'>('comfortable')
+const clearPinnedOnHistoryClear = ref(false)
 
 /** Live width of the list, kept by a ResizeObserver: the popup size is
  *  user-configurable, so the row text budget depends on it. */
@@ -124,6 +126,10 @@ async function loadSettings(): Promise<void> {
   try {
     const cfg = await App.GetSettings()
     previewOnHover.value = cfg.previewOnHover
+    imagePreviewSize.value = ['compact', 'large'].includes(cfg.imagePreviewSize)
+      ? cfg.imagePreviewSize as 'compact' | 'large'
+      : 'comfortable'
+    clearPinnedOnHistoryClear.value = cfg.clearPinnedOnHistoryClear
   } catch {
     /* Defaults are fine if preferences cannot be read. */
   }
@@ -236,6 +242,9 @@ async function togglePin(index: number): Promise<void> {
   try {
     await App.TogglePin(item.id)
     await reload()
+    const nextIndex = items.value.findIndex((candidate) => candidate.id === item.id)
+    if (nextIndex >= 0) selected.value = nextIndex
+    scrollSelectedIntoView()
   } catch (err) {
     showError(String(err))
   }
@@ -253,6 +262,10 @@ async function remove(index: number): Promise<void> {
 }
 
 async function clearAll(): Promise<void> {
+  const message = clearPinnedOnHistoryClear.value
+    ? 'Clear all clipboard history, including pinned entries? This cannot be undone.'
+    : 'Clear unpinned clipboard history? Pinned entries will be kept.'
+  if (!window.confirm(message)) return
   try {
     await App.ClearAll()
     await reload()
@@ -467,7 +480,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="stage">
+  <div class="stage" :class="`preview-${imagePreviewSize}`">
     <!-- Transparent gutter: nothing is drawn here until a row is pointed at,
          which is what keeps the panel itself narrow. Clicking it dismisses the
          popup, the way clicking outside a menu does. -->
@@ -502,11 +515,9 @@ onUnmounted(() => {
               fill="currentColor"
             />
           </svg>
-          <!-- The field keeps focus the whole time the popup is open and the
-               arrow keys drive the list underneath it, which is the combobox
-               pattern: the selection is published through aria-activedescendant
-               rather than by moving focus, so a screen reader announces the
-               highlighted row without the caret ever leaving the search. -->
+          <!-- The field keeps focus while arrow keys drive the list. The active
+               descendant points at the primary row action; pinning remains a
+               separate, valid button beside it rather than a nested control. -->
           <input
             ref="searchEl"
             v-model="query"
@@ -514,10 +525,9 @@ onUnmounted(() => {
             placeholder="type to search…"
             spellcheck="false"
             autocomplete="off"
-            role="combobox"
+            role="searchbox"
             aria-label="Search clipboard history"
             aria-controls="geda-history"
-            aria-expanded="true"
             :aria-activedescendant="empty ? undefined : `geda-row-${selected}`"
           />
         </div>
@@ -529,7 +539,7 @@ onUnmounted(() => {
         id="geda-history"
         ref="listEl"
         class="list scroll"
-        role="listbox"
+        role="list"
         aria-label="Clipboard history"
         @mouseleave="onListLeave"
       >
@@ -537,35 +547,48 @@ onUnmounted(() => {
           {{ query ? 'No matching entries' : 'Clipboard history is empty' }}
         </p>
 
-        <button
+        <div
           v-for="(item, index) in items"
-          :id="`geda-row-${index}`"
           :key="item.id"
           :ref="(el) => { if (el) rowEls[index] = el as HTMLElement }"
-          class="row"
+          class="row-shell"
           :class="{ 'row-selected': index === selected }"
-          type="button"
-          role="option"
-          :aria-selected="index === selected"
-          :aria-label="rowDescription(item)"
-          tabindex="-1"
-          @mousedown="keepSearchFocus"
-          @click="activate(index)"
+          role="listitem"
           @mouseenter="onRowEnter(index)"
           @mouseleave="onRowLeave(index)"
         >
-          <svg v-if="item.pinned" class="pin" viewBox="0 0 16 16" aria-hidden="true">
-            <path
-              d="M9.5 1.5 14.5 6.5l-1.9.5-3 3 .4 3.3-1.3.5-2.2-3.4-3.6 3.6-.7-.7 3.6-3.6L2.4 7.5l.5-1.3 3.3.4 3-3 .3-2.1Z"
-              fill="currentColor"
-            />
-          </svg>
+          <button
+            :id="`geda-row-${index}`"
+            class="row-main"
+            type="button"
+            :aria-current="index === selected ? 'true' : undefined"
+            :aria-label="rowDescription(item)"
+            tabindex="-1"
+            @mousedown="keepSearchFocus"
+            @click="activate(index)"
+          >
+            <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="thumb" alt="" />
+            <span v-else class="label">{{ label(item) }}</span>
+            <span class="accel">{{ accelerator(index) }}</span>
+          </button>
 
-          <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="thumb" alt="" />
-          <span v-else class="label">{{ label(item) }}</span>
-
-          <span class="accel">{{ accelerator(index) }}</span>
-        </button>
+          <button
+            class="pin-action"
+            :class="{ pinned: item.pinned }"
+            type="button"
+            :title="item.pinned ? 'Unpin entry' : 'Pin entry'"
+            :aria-label="`${item.pinned ? 'Unpin' : 'Pin'} ${rowDescription(item)}`"
+            @mousedown="keepSearchFocus"
+            @click.stop="togglePin(index)"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M9.5 1.5 14.5 6.5l-1.9.5-3 3 .4 3.3-1.3.5-2.2-3.4-3.6 3.6-.7-.7 3.6-3.6L2.4 7.5l.5-1.3 3.3.4 3-3 .3-2.1Z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="hairline" />
@@ -600,8 +623,20 @@ onUnmounted(() => {
    right edge, and the strip to the left is transparent until a preview flies
    out into it. */
 .stage {
+  --image-row-h: 74px;
+  --image-detail-h: 170px;
   display: flex;
   height: 100%;
+}
+
+.stage.preview-compact {
+  --image-row-h: 44px;
+  --image-detail-h: 120px;
+}
+
+.stage.preview-large {
+  --image-row-h: 112px;
+  --image-detail-h: 220px;
 }
 
 .gutter {
@@ -699,21 +734,31 @@ onUnmounted(() => {
   font-size: 12.5px;
 }
 
-.row {
+.row-shell {
   display: flex;
   align-items: center;
-  gap: 8px;
   width: 100%;
   min-height: var(--row-h);
-  padding: 3px 8px;
-  border: 0;
   border-radius: var(--radius-row);
   background: transparent;
+}
+
+.row-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--row-h);
+  padding: 3px 5px 3px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
   text-align: left;
   cursor: default;
 }
 
-.row:hover {
+.row-shell:hover {
   background: var(--hover-bg);
 }
 
@@ -723,11 +768,37 @@ onUnmounted(() => {
   color: var(--accent-fg);
 }
 
-.pin {
-  width: 11px;
-  height: 11px;
+.pin-action {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  margin-right: 3px;
+  padding: 6px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
   flex: none;
-  opacity: 0.8;
+  opacity: 0;
+  cursor: default;
+}
+
+.pin-action svg {
+  width: 13px;
+  height: 13px;
+}
+
+.pin-action.pinned,
+.row-shell:hover .pin-action,
+.row-selected .pin-action,
+.pin-action:focus-visible {
+  opacity: 0.82;
+}
+
+.pin-action:hover,
+.pin-action:focus-visible {
+  background: color-mix(in srgb, currentColor 14%, transparent);
 }
 
 .label {
@@ -741,7 +812,7 @@ onUnmounted(() => {
 .thumb {
   flex: 1;
   min-width: 0;
-  max-height: 74px;
+  height: var(--image-row-h);
   border-radius: 3px;
   object-fit: contain;
   object-position: left center;

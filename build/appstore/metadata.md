@@ -73,7 +73,7 @@ It also tells you what it caught. Every copy, and every entry you pick out of th
 
 FEATURES
 
-• Searchable history of text and images, with thumbnails
+• Searchable history of text and images, with three thumbnail sizes
 • The popup opens at the pointer, or under the menu bar icon, whichever you prefer
 • Notifications on copy and on reuse, each one switchable on its own
 • Choosing an entry returns you to the app you came from, so pasting is one ⌘V
@@ -81,7 +81,7 @@ FEATURES
 • Local day, week, month and year statistics for text, images and repeated copies, stored as bounded counters rather than per-copy events
 • Every entry records the app it came from, with its icon, and when you first and last copied it
 • Point at any row for a card with the full text, its length, and its history
-• Pin the entries you use every day so they outlive the history limit
+• Pin the entries you use every day, arrange their priority, and keep them safe when clearing routine history
 • Keyboard throughout: ⌘1 to ⌘9 to pick an entry, ⌥P to pin, ⌥⌫ to delete, Esc to dismiss
 • A global shortcut you can rebind to whatever is free on your Mac
 • Launch at login, and no Dock icon unless you ask for one
@@ -165,16 +165,12 @@ a reviewer with VoiceOver on will find out in under a minute.
 | Differentiate Without Colour | **No** | The selected row is still distinguished visually by fill colour alone. `aria-selected` fixes this for assistive technology, not for a sighted user who cannot separate the two colours. |
 | Captions / Audio Descriptions | N/A | The app plays no media. |
 
-**What changed in 0.6.1.** The popup was previously unusable with a screen
-reader in the ways that matter: the search field had no accessible name, the
-history was an unlabelled pile of buttons with no listbox semantics, the
-highlighted row was not announced as selected, and an image row announced
-nothing at all because its only content was a thumbnail with an empty `alt`.
-All four are fixed. The field is a labelled `combobox` that publishes the
-highlight through `aria-activedescendant`, so the selection is spoken while the
-caret stays in the search; rows are `option`s carrying `aria-selected` and a
-description that names an image by its dimensions and every row by its source
-app.
+**Current implementation.** The search field has an accessible name and
+publishes the highlighted primary row action through `aria-activedescendant`,
+so selection can be spoken while the caret stays in search. History is an
+explicit list whose rows describe image dimensions and source applications.
+Each row exposes paste/copy and pin/unpin as separate labelled buttons, avoiding
+nested interactive controls.
 
 **The two-minute test before ticking VoiceOver or Voice Control.** Press
 `⌘F5`, open the popup, and check that: the search field announces itself; the

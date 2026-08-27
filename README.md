@@ -16,8 +16,8 @@ were working in.
   Preferences can anchor it under the tray icon instead.
 - **Notifications on copy and paste**, showing the source app and a preview.
   Each can be toggled independently.
-- **Text and image history** with thumbnails; images are stored as separate blob
-  files so the index stays small.
+- **Text and image history** with Compact, Comfortable or Large thumbnails;
+  images are stored as separate blob files so the index stays small.
 - **Copy counting** — re-copying the same content bumps an existing entry and
   increments its counter rather than creating a duplicate. This is driven by the
   OS clipboard change counter, so an identical re-copy is still detected.
@@ -31,8 +31,9 @@ were working in.
   than blamed on whichever Mac app happened to be frontmost, and never dropped
   by that app's ignore-list entry. The payload comes across on demand, so the
   notification lands a second or so after the copy.
-- **Pin** entries to keep them past the history limit; **delete** individually
-  or clear everything.
+- **Pin** entries to keep them past the history limit, arrange important pins
+  above the automatically ordered ones, and clear routine history without
+  losing pinned content. Pinned clearing remains available as an opt-in.
 - **Paste back into the previous app**: the app you came from is remembered
   before the popup steals focus, then refocused and sent the paste keystroke.
 - **Privacy** — honours the conventions password managers use to opt out

@@ -9,6 +9,15 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+### Added
+
+- **Pinned entries can be managed from Preferences.** User-prioritised entries
+  keep their chosen order above automatically ordered pins, and every popup row
+  now has a direct pin control alongside the existing keyboard shortcut.
+- **Image previews have Compact, Comfortable and Large size options.** History
+  clearing keeps pinned entries by default, with an opt-in preference to clear
+  them too.
+
 ## [0.9.0] - 2026-08-26
 
 ### Added
