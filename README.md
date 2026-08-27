@@ -92,8 +92,10 @@ has a macOS bundle and Windows executables attached.
   so SmartScreen warns about an unknown publisher: choose
   **More info › Run anyway**.
 
-Neither app opens a window: look for the icon in the menu bar or the
-notification area.
+The first launch opens a short Welcome window that points out the menu bar or
+notification-area icon and the global shortcut. After that, Geda starts quietly
+in the background. If it is already running, opening the app again shows the
+clipboard popup.
 
 Building from source is also fine, and skips the SmartScreen prompt on Windows
 since a locally built binary is never marked as downloaded:

@@ -45,6 +45,11 @@ const (
 	settingsWidth  = 760
 	settingsHeight = 640
 
+	// Welcome is deliberately smaller than Preferences: it has one focused job
+	// and should read as an introduction, not another settings surface.
+	welcomeWidth  = 600
+	welcomeHeight = 462
+
 	// previewGutter is the width of the transparent strip the popup window keeps
 	// to the left of the list, so the hover preview card has somewhere to appear
 	// beside the row it describes. The list panel itself stays PopupWidth wide;
@@ -74,6 +79,7 @@ type View string
 const (
 	ViewPopup    View = "popup"
 	ViewSettings View = "settings"
+	ViewWelcome  View = "welcome"
 )
 
 // App is the Wails-bound application object. Every exported method is callable
@@ -119,6 +125,9 @@ func NewApp(trayIcon []byte) *App {
 		log.Println("settings: falling back to defaults:", err)
 	}
 	a.settings = sm
+	if a.settings.NeedsWelcome() {
+		a.view = ViewWelcome
+	}
 
 	cfg := a.settings.Get()
 
@@ -405,6 +414,11 @@ func (a *App) emitHistoryChanged() {
 
 // OnLeftClick toggles the popup, anchored under the tray icon.
 func (a *App) OnLeftClick(anchor tray.Anchor) {
+	if a.settings.NeedsWelcome() {
+		a.showWelcome()
+		return
+	}
+
 	a.mu.Lock()
 	a.anchor = anchor
 	visible := a.visible && a.view == ViewPopup
@@ -426,6 +440,11 @@ func (a *App) OnRightClick(anchor tray.Anchor) {
 // TogglePopup shows or hides the popup. Bound to the global hotkey and callable
 // from the frontend.
 func (a *App) TogglePopup() {
+	if a.settings.NeedsWelcome() {
+		a.showWelcome()
+		return
+	}
+
 	a.mu.Lock()
 	visible := a.visible && a.view == ViewPopup
 	anchor := a.anchor
@@ -435,6 +454,22 @@ func (a *App) TogglePopup() {
 		a.HidePopup()
 		return
 	}
+	a.showPopupAt(anchor)
+}
+
+// onSecondInstanceLaunch turns an otherwise invisible repeat launch into a
+// useful action. Welcome remains authoritative until it has been completed;
+// afterwards, opening the executable means "show my clipboard" and never
+// toggles an already-visible popup off.
+func (a *App) onSecondInstanceLaunch() {
+	if a.settings.NeedsWelcome() {
+		a.showWelcome()
+		return
+	}
+
+	a.mu.Lock()
+	anchor := a.anchor
+	a.mu.Unlock()
 	a.showPopupAt(anchor)
 }
 
@@ -596,7 +631,7 @@ func (a *App) HidePopup() {
 	}
 	a.mu.Lock()
 	a.visible = false
-	wasSettings := a.view == ViewSettings
+	wasNonPopup := a.view != ViewPopup
 	a.view = ViewPopup
 	a.mu.Unlock()
 
@@ -608,7 +643,7 @@ func (a *App) HidePopup() {
 	// means the next show paints one frame of stale preferences, because the
 	// show path emits its own "view:changed" microseconds before the window
 	// appears and the web view cannot repaint that fast.
-	if wasSettings {
+	if wasNonPopup {
 		wruntime.EventsEmit(a.ctx, "view:changed", string(ViewPopup))
 	}
 }
@@ -901,6 +936,69 @@ func (a *App) ClearHistoryAndStatistics() error {
 // ---------------------------------------------------------------------------
 // Frontend API: settings and app control
 // ---------------------------------------------------------------------------
+
+// InitialView lets the frontend render the correct screen before the hidden
+// native window is first shown. Relying only on an event from OnStartup races
+// Vue's listener registration and can flash the clipboard inside Welcome.
+func (a *App) InitialView() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return string(a.view)
+}
+
+// FrontendReady is called after Vue has loaded the environment and installed
+// its view listeners. Normal startup remains hidden; only a pending first-run
+// introduction is shown automatically.
+func (a *App) FrontendReady() {
+	if a.settings.NeedsWelcome() {
+		a.showWelcome()
+	}
+}
+
+// showWelcome presents the first-run introduction in the centre of the active
+// screen. It stays open on blur, like Preferences, so referring to another app
+// or a menu-bar manager does not discard the explanation.
+func (a *App) showWelcome() {
+	if a.ctx == nil {
+		return
+	}
+	a.mu.Lock()
+	if !a.settings.NeedsWelcome() {
+		anchor := a.anchor
+		a.mu.Unlock()
+		a.showPopupAt(anchor)
+		return
+	}
+	a.view = ViewWelcome
+	a.visible = true
+	a.mu.Unlock()
+
+	wruntime.EventsEmit(a.ctx, "view:changed", string(ViewWelcome))
+	wruntime.WindowSetSize(a.ctx, welcomeWidth+2*shadowSide, welcomeHeight+shadowTop+shadowBottom)
+	window.SetPanelInset(shadowSide, shadowTop, shadowSide, shadowBottom, panelRadius)
+	wruntime.WindowCenter(a.ctx)
+	wruntime.WindowShow(a.ctx)
+	window.Focus()
+	wruntime.EventsEmit(a.ctx, "welcome:shown")
+}
+
+// CompleteWelcome persists the introduction as seen, then takes the user to
+// either the clipboard or Preferences. A persistence failure is logged but
+// cannot trap the user on this screen for the rest of the current session.
+func (a *App) CompleteWelcome(openSettings bool) {
+	if err := a.settings.CompleteWelcome(); err != nil {
+		log.Println("welcome:", err)
+	}
+
+	if openSettings {
+		a.ShowSettings()
+	} else {
+		a.mu.Lock()
+		anchor := a.anchor
+		a.mu.Unlock()
+		a.showPopupAt(anchor)
+	}
+}
 
 // GetSettings returns the current preferences.
 func (a *App) GetSettings() settings.Settings { return a.settings.Get() }

@@ -8,8 +8,9 @@ import { EventsOn } from '../wailsjs/runtime/runtime'
 import { setPlatform } from './lib/keys'
 import PopupView from './components/PopupView.vue'
 import SettingsView from './components/SettingsView.vue'
+import WelcomeView from './components/WelcomeView.vue'
 
-type View = 'popup' | 'settings'
+type View = 'popup' | 'settings' | 'welcome'
 type SettingsTab = 'general' | 'clipboard' | 'pinned' | 'privacy' | 'statistics' | 'about'
 
 const view = ref<View>('popup')
@@ -53,6 +54,19 @@ function keepFocus(event: MouseEvent): void {
 let disposers: Array<() => void> = []
 
 onMounted(async () => {
+  window.addEventListener('blur', onBlur)
+
+  // Install the listener before asking Go for bootstrap state: a repeat launch
+  // can arrive while the WebView is starting, and its requested view must not
+  // be overwritten by a late initial response.
+  disposers.push(
+    EventsOn('view:changed', (next: string) => {
+      if (next === 'popup' || next === 'settings' || next === 'welcome') {
+        view.value = next
+      }
+    }),
+  )
+
   try {
     const environment = await App.Env()
     env.value = environment
@@ -61,15 +75,16 @@ onMounted(async () => {
     /* Fall back to the default (macOS) key labels. */
   }
 
-  window.addEventListener('blur', onBlur)
+  try {
+    const initial = await App.InitialView()
+    if (initial === 'popup' || initial === 'settings' || initial === 'welcome') {
+      view.value = initial
+    }
+  } catch {
+    /* Popup is the safe fallback for builds with older bindings. */
+  }
 
-  disposers.push(
-    EventsOn('view:changed', (next: string) => {
-      if (next === 'popup' || next === 'settings') {
-        view.value = next
-      }
-    }),
-  )
+  void App.FrontendReady()
 })
 
 onUnmounted(() => {
@@ -82,6 +97,7 @@ onUnmounted(() => {
 <template>
   <div class="window" @mousedown.self="keepFocus" @click.self="onSurroundClick">
     <PopupView v-if="view === 'popup'" @open-settings="openSettings" />
+    <WelcomeView v-else-if="view === 'welcome'" :env="env" />
     <SettingsView
       v-else
       :tab="settingsTab"

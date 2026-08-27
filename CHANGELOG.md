@@ -9,6 +9,14 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-27
+
+### Added
+
+- **A first-run Welcome window now explains where Geda lives and how to open
+  it.** Later background launches stay quiet, while opening the app again when
+  it is already running brings up the clipboard popup.
+
 ## [0.11.0] - 2026-08-27
 
 ### Changed
@@ -400,7 +408,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.9.0...v0.10.0

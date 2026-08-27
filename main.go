@@ -16,7 +16,7 @@ var assets embed.FS
 
 // appVersion is reported in the About panel. Override at build time with
 // -ldflags "-X main.appVersion=1.2.3".
-var appVersion = "0.11.0"
+var appVersion = "0.12.0"
 
 func main() {
 	app := NewApp(trayIcon)
@@ -41,6 +41,12 @@ func main() {
 
 		OnStartup:  app.OnStartup,
 		OnShutdown: app.OnShutdown,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId: "com.geda.clipboard",
+			OnSecondInstanceLaunch: func(options.SecondInstanceData) {
+				app.onSecondInstanceLaunch()
+			},
+		},
 
 		Mac: &mac.Options{
 			WebviewIsTransparent: true,
