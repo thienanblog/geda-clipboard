@@ -81,6 +81,8 @@ const isMac = computed(() => props.env?.platform === 'darwin')
 const canUpdate = ref(false)
 const pinnedItems = ref<store.Item[]>([])
 const draggedPinnedID = ref('')
+const pinnedBusy = ref(false)
+let pinnedLoadGeneration = 0
 
 const priorityItems = computed(() => pinnedItems.value.filter((item) => (item.pinPriority ?? 0) > 0))
 const automaticItems = computed(() => pinnedItems.value.filter((item) => (item.pinPriority ?? 0) === 0))
@@ -100,11 +102,15 @@ async function load(): Promise<void> {
 }
 
 async function loadPinned(): Promise<void> {
+  const generation = ++pinnedLoadGeneration
   try {
-    pinnedItems.value = await App.ListPinned()
+    const items = await App.ListPinned()
+    if (generation === pinnedLoadGeneration) pinnedItems.value = items
   } catch (err) {
-    pinnedItems.value = []
-    flash(String(err))
+    if (generation === pinnedLoadGeneration) {
+      pinnedItems.value = []
+      flash(String(err))
+    }
   }
 }
 
@@ -116,12 +122,16 @@ function pinnedLabel(item: store.Item): string {
 }
 
 async function savePinnedPriority(ids: string[]): Promise<void> {
+  if (pinnedBusy.value) return
+  pinnedBusy.value = true
   try {
     await App.SetPinnedPriority(ids)
     await loadPinned()
   } catch (err) {
     flash(String(err))
     await loadPinned()
+  } finally {
+    pinnedBusy.value = false
   }
 }
 
@@ -152,16 +162,24 @@ function resetPinnedPriority(): void {
 }
 
 async function unpin(item: store.Item): Promise<void> {
+  if (pinnedBusy.value) return
+  pinnedBusy.value = true
   try {
     await App.TogglePin(item.id)
     await loadPinned()
   } catch (err) {
     flash(String(err))
     await loadPinned()
+  } finally {
+    pinnedBusy.value = false
   }
 }
 
 function onPinnedDragStart(item: store.Item, event: DragEvent): void {
+  if (pinnedBusy.value) {
+    event.preventDefault()
+    return
+  }
   draggedPinnedID.value = item.id
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
@@ -556,7 +574,7 @@ onUnmounted(() => {
               class="pinned-row"
               :class="{ dragging: draggedPinnedID === item.id }"
               role="listitem"
-              draggable="true"
+              :draggable="!pinnedBusy"
               @dragstart="onPinnedDragStart(item, $event)"
               @dragend="onPinnedDragEnd"
               @dragover.prevent
@@ -570,16 +588,16 @@ onUnmounted(() => {
                 <small>{{ item.sourceApp || 'Unknown application' }}</small>
               </span>
               <span class="pinned-actions">
-                <button type="button" :disabled="index === 0" :aria-label="`Move ${pinnedLabel(item)} up`" @click="movePriority(index, -1)">↑</button>
-                <button type="button" :disabled="index === priorityItems.length - 1" :aria-label="`Move ${pinnedLabel(item)} down`" @click="movePriority(index, 1)">↓</button>
-                <button type="button" :aria-label="`Return ${pinnedLabel(item)} to automatic order`" @click="returnToAutomatic(item)">Return to automatic</button>
-                <button type="button" class="danger-text" :aria-label="`Unpin ${pinnedLabel(item)}`" @click="unpin(item)">Unpin</button>
+                <button type="button" :disabled="pinnedBusy || index === 0" :aria-label="`Move ${pinnedLabel(item)} up`" @click="movePriority(index, -1)">↑</button>
+                <button type="button" :disabled="pinnedBusy || index === priorityItems.length - 1" :aria-label="`Move ${pinnedLabel(item)} down`" @click="movePriority(index, 1)">↓</button>
+                <button type="button" :disabled="pinnedBusy" :aria-label="`Return ${pinnedLabel(item)} to automatic order`" @click="returnToAutomatic(item)">Return to automatic</button>
+                <button type="button" class="danger-text" :disabled="pinnedBusy" :aria-label="`Unpin ${pinnedLabel(item)}`" @click="unpin(item)">Unpin</button>
               </span>
             </div>
           </div>
 
           <div class="btn-row">
-            <button class="btn subtle" type="button" :disabled="priorityItems.length === 0" @click="resetPinnedPriority">
+            <button class="btn subtle" type="button" :disabled="pinnedBusy || priorityItems.length === 0" @click="resetPinnedPriority">
               Reset automatic order
             </button>
           </div>
@@ -601,7 +619,7 @@ onUnmounted(() => {
               class="pinned-row"
               :class="{ dragging: draggedPinnedID === item.id }"
               role="listitem"
-              draggable="true"
+              :draggable="!pinnedBusy"
               @dragstart="onPinnedDragStart(item, $event)"
               @dragend="onPinnedDragEnd"
             >
@@ -613,8 +631,8 @@ onUnmounted(() => {
                 <small>{{ item.sourceApp || 'Unknown application' }}</small>
               </span>
               <span class="pinned-actions">
-                <button type="button" :aria-label="`Prioritise ${pinnedLabel(item)}`" @click="prioritise(item)">Prioritise</button>
-                <button type="button" class="danger-text" :aria-label="`Unpin ${pinnedLabel(item)}`" @click="unpin(item)">Unpin</button>
+                <button type="button" :disabled="pinnedBusy" :aria-label="`Prioritise ${pinnedLabel(item)}`" @click="prioritise(item)">Prioritise</button>
+                <button type="button" class="danger-text" :disabled="pinnedBusy" :aria-label="`Unpin ${pinnedLabel(item)}`" @click="unpin(item)">Unpin</button>
               </span>
             </div>
           </div>

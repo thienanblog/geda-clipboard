@@ -478,6 +478,9 @@ func (s *Store) TogglePin(id string) (bool, error) {
 	}
 	var evicted []*Item
 	if found {
+		// Removing a manually ordered pin must close the gap so every positive
+		// priority continues to describe the entry's actual position.
+		s.normalisePinPriorities()
 		// Unpinning can push the entry past the cap.
 		evicted = s.evictLocked()
 	}
@@ -541,6 +544,9 @@ func (s *Store) Delete(id string) error {
 			s.items = append(s.items[:idx], s.items[idx+1:]...)
 			break
 		}
+	}
+	if removed != nil {
+		s.normalisePinPriorities()
 	}
 	s.mu.Unlock()
 

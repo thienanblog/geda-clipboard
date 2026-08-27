@@ -250,6 +250,38 @@ func TestUnpinAndRepinReturnsToAutomaticOrdering(t *testing.T) {
 	}
 }
 
+func TestRemovingPriorityEntriesCompactsRemainingRanks(t *testing.T) {
+	s := newStore(t, 10)
+	base := time.Now()
+	first, _ := addText(t, s, "first", base)
+	second, _ := addText(t, s, "second", base.Add(time.Second))
+	third, _ := addText(t, s, "third", base.Add(2*time.Second))
+	for _, item := range []*Item{first, second, third} {
+		if _, err := s.TogglePin(item.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetPinnedPriority([]string{first.ID, second.ID, third.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.TogglePin(second.ID); err != nil {
+		t.Fatal(err)
+	}
+	got := s.ListPinned()
+	if len(got) != 2 || got[0].PinPriority != 1 || got[1].PinPriority != 2 {
+		t.Fatalf("priorities after unpin = %+v, want compact ranks 1 and 2", got)
+	}
+
+	if err := s.Delete(first.ID); err != nil {
+		t.Fatal(err)
+	}
+	got = s.ListPinned()
+	if len(got) != 1 || got[0].ID != third.ID || got[0].PinPriority != 1 {
+		t.Fatalf("priorities after delete = %+v, want remaining rank 1", got)
+	}
+}
+
 func TestClearCanPreservePinnedEntries(t *testing.T) {
 	s := newStore(t, 10)
 	base := time.Now()

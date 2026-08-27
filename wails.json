@@ -8,7 +8,7 @@
   "frontend:dev:serverUrl": "auto",
   "info": {
     "productName": "Geda Clipboard",
-    "productVersion": "0.9.0",
+    "productVersion": "0.10.0",
     "comments": "Menu bar clipboard manager with copy and paste notifications",
     "copyright": "© 2026 Ân Vũ"
   },
