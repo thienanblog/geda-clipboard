@@ -372,6 +372,11 @@ function onKeydown(event: KeyboardEvent): void {
     return
   }
 
+  // Enter belongs to a button reached with Tab. The global list handler only
+  // owns Enter while the search field (or another non-button surface) keeps
+  // focus; otherwise a keyboard user trying to pin would paste the row instead.
+  if (event.key === 'Enter' && event.target instanceof HTMLButtonElement) return
+
   switch (event.key) {
     case 'ArrowDown':
       event.preventDefault()
@@ -579,6 +584,7 @@ onUnmounted(() => {
             :title="item.pinned ? 'Unpin entry' : 'Pin entry'"
             :aria-label="`${item.pinned ? 'Unpin' : 'Pin'} ${rowDescription(item)}`"
             @mousedown="keepSearchFocus"
+            @keydown.enter.stop.prevent="togglePin(index)"
             @click.stop="togglePin(index)"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
