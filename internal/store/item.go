@@ -53,6 +53,9 @@ type Item struct {
 	CopyCount int       `json:"copyCount"`
 
 	Pinned bool `json:"pinned"`
+	// PinPriority is zero while a pinned entry follows normal recency ordering.
+	// Positive values place user-arranged entries first, in ascending order.
+	PinPriority int `json:"pinPriority,omitempty"`
 }
 
 // Preview returns a single-line label for the entry, suitable for the list.

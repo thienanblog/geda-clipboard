@@ -27,12 +27,11 @@ import (
 )
 
 const (
-	// Thumbnails only ever render at ~74px tall in the list and ~110px in the
-	// detail card, so these bounds are already 2x the largest display size.
-	// Going larger just inflates the history index, which is rewritten whenever
-	// the history changes.
-	thumbMaxW = 360
-	thumbMaxH = 150
+	// A thumbnail is shown both in a row and in the hover detail card. These
+	// bounds keep the opt-in Large preset sharp without inflating the history
+	// index with full-size image data on every save.
+	thumbMaxW = 480
+	thumbMaxH = 240
 
 	// Size of the source-app icon captured alongside each entry.
 	appIconPx = 32
@@ -656,6 +655,18 @@ func (a *App) List(query string) []*store.Item {
 	return items
 }
 
+// ListPinned returns the pinned entries in their effective display order.
+func (a *App) ListPinned() []*store.Item {
+	if a.store == nil {
+		return []*store.Item{}
+	}
+	items := a.store.ListPinned()
+	if items == nil {
+		return []*store.Item{}
+	}
+	return items
+}
+
 // Count returns the number of stored entries.
 func (a *App) Count() int {
 	if a.store == nil {
@@ -819,6 +830,18 @@ func (a *App) TogglePin(id string) (bool, error) {
 	return pinned, nil
 }
 
+// SetPinnedPriority replaces the manually arranged pinned prefix.
+func (a *App) SetPinnedPriority(ids []string) error {
+	if a.store == nil {
+		return fmt.Errorf("history unavailable")
+	}
+	if err := a.store.SetPinnedPriority(ids); err != nil {
+		return err
+	}
+	a.emitHistoryChanged()
+	return nil
+}
+
 // Delete removes a single entry.
 func (a *App) Delete(id string) error {
 	if a.store == nil {
@@ -837,7 +860,7 @@ func (a *App) ClearAll() error {
 	if a.store == nil {
 		return fmt.Errorf("history unavailable")
 	}
-	a.store.Clear()
+	a.store.Clear(a.settings.Get().ClearPinnedOnHistoryClear)
 	a.emitHistoryChanged()
 	return nil
 }
@@ -867,7 +890,7 @@ func (a *App) ClearHistoryAndStatistics() error {
 	if a.stats == nil {
 		return fmt.Errorf("statistics unavailable")
 	}
-	a.store.Clear()
+	a.store.Clear(a.settings.Get().ClearPinnedOnHistoryClear)
 	a.emitHistoryChanged()
 	if err := a.stats.Reset(); err != nil {
 		return err

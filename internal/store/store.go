@@ -148,6 +148,7 @@ func OpenAt(dir string, maxItems int) (*Store, error) {
 		s.items = append(s.items, it)
 	}
 	s.sortItems()
+	s.normalisePinPriorities()
 	s.nextID = time.Now().UnixNano()
 	return s, nil
 }
@@ -188,6 +189,25 @@ func (s *Store) sortItems() {
 	sort.SliceStable(s.items, func(i, j int) bool {
 		return s.items[i].LastCopy.After(s.items[j].LastCopy)
 	})
+}
+
+// normalisePinPriorities repairs hand-edited or older indexes into a compact,
+// deterministic order. The chronological item order breaks duplicate ranks.
+func (s *Store) normalisePinPriorities() {
+	var priority []*Item
+	for _, it := range s.items {
+		if !it.Pinned || it.PinPriority <= 0 {
+			it.PinPriority = 0
+			continue
+		}
+		priority = append(priority, it)
+	}
+	sort.SliceStable(priority, func(i, j int) bool {
+		return priority[i].PinPriority < priority[j].PinPriority
+	})
+	for idx, it := range priority {
+		it.PinPriority = idx + 1
+	}
 }
 
 func (s *Store) newID() string {
@@ -347,27 +367,49 @@ func (s *Store) removeBlobs(items []*Item) {
 	}
 }
 
-// List returns entries matching query, pinned entries first, each already a
-// copy safe to hand to the frontend. A blank query returns everything.
+// List returns entries matching query, manually prioritised pinned entries
+// first, then automatic pinned entries, then unpinned history. A blank query
+// returns everything.
 func (s *Store) List(query string) []*Item {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.listLocked(query, false)
+}
+
+// ListPinned returns pinned entries in the same order List presents them.
+func (s *Store) ListPinned() []*Item {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.listLocked("", true)
+}
+
+func (s *Store) listLocked(query string, onlyPinned bool) []*Item {
 
 	needle := strings.ToLower(strings.TrimSpace(query))
 
-	var pinned, rest []*Item
+	var priority, automatic, rest []*Item
 	for _, it := range s.items {
 		if needle != "" && !matches(it, needle) {
 			continue
 		}
+		if onlyPinned && !it.Pinned {
+			continue
+		}
 		c := s.resolveLocked(it)
-		if it.Pinned {
-			pinned = append(pinned, &c)
-		} else {
+		switch {
+		case it.Pinned && it.PinPriority > 0:
+			priority = append(priority, &c)
+		case it.Pinned:
+			automatic = append(automatic, &c)
+		default:
 			rest = append(rest, &c)
 		}
 	}
-	return append(pinned, rest...)
+	sort.SliceStable(priority, func(i, j int) bool {
+		return priority[i].PinPriority < priority[j].PinPriority
+	})
+	result := append(priority, automatic...)
+	return append(result, rest...)
 }
 
 func matches(it *Item, needle string) bool {
@@ -426,6 +468,9 @@ func (s *Store) TogglePin(id string) (bool, error) {
 	for _, it := range s.items {
 		if it.ID == id {
 			it.Pinned = !it.Pinned
+			// Any pin-state transition returns the entry to automatic ordering;
+			// stale manual placement must not reappear after a later re-pin.
+			it.PinPriority = 0
 			pinned = it.Pinned
 			found = true
 			break
@@ -444,6 +489,46 @@ func (s *Store) TogglePin(id string) (bool, error) {
 	s.removeBlobs(evicted)
 	s.scheduleSave()
 	return pinned, nil
+}
+
+// SetPinnedPriority replaces the manually arranged pinned prefix. Pinned IDs
+// omitted from ids return to automatic recency ordering.
+func (s *Store) SetPinnedPriority(ids []string) error {
+	s.mu.Lock()
+
+	byID := make(map[string]*Item, len(s.items))
+	for _, it := range s.items {
+		byID[it.ID] = it
+	}
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		if _, duplicate := seen[id]; duplicate {
+			s.mu.Unlock()
+			return fmt.Errorf("duplicate pinned entry %q", id)
+		}
+		it, ok := byID[id]
+		if !ok {
+			s.mu.Unlock()
+			return fmt.Errorf("entry %q not found", id)
+		}
+		if !it.Pinned {
+			s.mu.Unlock()
+			return fmt.Errorf("entry %q is not pinned", id)
+		}
+		seen[id] = struct{}{}
+	}
+
+	for _, it := range s.items {
+		if it.Pinned {
+			it.PinPriority = 0
+		}
+	}
+	for idx, id := range ids {
+		byID[id].PinPriority = idx + 1
+	}
+	s.mu.Unlock()
+	s.scheduleSave()
+	return nil
 }
 
 // Delete removes a single entry.
@@ -467,11 +552,19 @@ func (s *Store) Delete(id string) error {
 	return nil
 }
 
-// Clear removes every entry, including pinned ones.
-func (s *Store) Clear() {
+// Clear removes all unpinned entries and, when includePinned is true, pinned
+// entries too.
+func (s *Store) Clear(includePinned bool) {
 	s.mu.Lock()
-	removed := s.items
-	s.items = nil
+	var kept, removed []*Item
+	for _, it := range s.items {
+		if it.Pinned && !includePinned {
+			kept = append(kept, it)
+		} else {
+			removed = append(removed, it)
+		}
+	}
+	s.items = kept
 	s.mu.Unlock()
 
 	s.removeBlobs(removed)

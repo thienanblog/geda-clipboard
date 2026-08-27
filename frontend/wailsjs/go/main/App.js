@@ -54,6 +54,10 @@ export function List(arg1) {
   return window['go']['main']['App']['List'](arg1);
 }
 
+export function ListPinned() {
+  return window['go']['main']['App']['ListPinned']();
+}
+
 export function NotificationStatus() {
   return window['go']['main']['App']['NotificationStatus']();
 }
@@ -124,6 +128,10 @@ export function Select(arg1) {
 
 export function SendTestNotification() {
   return window['go']['main']['App']['SendTestNotification']();
+}
+
+export function SetPinnedPriority(arg1) {
+  return window['go']['main']['App']['SetPinnedPriority'](arg1);
 }
 
 export function ShowSettings() {

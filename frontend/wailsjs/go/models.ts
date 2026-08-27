@@ -45,6 +45,8 @@ export namespace settings {
 	    popupHeight: number;
 	    popupPlacement: string;
 	    previewOnHover: boolean;
+	    imagePreviewSize: string;
+	    clearPinnedOnHistoryClear: boolean;
 	    layoutVersion: number;
 	
 	    static createFrom(source: any = {}) {
@@ -68,6 +70,8 @@ export namespace settings {
 	        this.popupHeight = source["popupHeight"];
 	        this.popupPlacement = source["popupPlacement"];
 	        this.previewOnHover = source["previewOnHover"];
+	        this.imagePreviewSize = source["imagePreviewSize"];
+	        this.clearPinnedOnHistoryClear = source["clearPinnedOnHistoryClear"];
 	        this.layoutVersion = source["layoutVersion"];
 	    }
 	}
@@ -190,6 +194,7 @@ export namespace store {
 	    lastCopy: any;
 	    copyCount: number;
 	    pinned: boolean;
+	    pinPriority?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Item(source);
@@ -213,6 +218,7 @@ export namespace store {
 	        this.lastCopy = this.convertValues(source["lastCopy"], null);
 	        this.copyCount = source["copyCount"];
 	        this.pinned = source["pinned"];
+	        this.pinPriority = source["pinPriority"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

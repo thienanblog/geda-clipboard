@@ -142,6 +142,172 @@ func TestPinnedSurviveEvictionAndSortFirst(t *testing.T) {
 	}
 }
 
+func TestPinnedPriorityPrecedesAutomaticPins(t *testing.T) {
+	s := newStore(t, 10)
+	base := time.Now()
+	oldest, _ := addText(t, s, "oldest", base)
+	middle, _ := addText(t, s, "middle", base.Add(time.Second))
+	newest, _ := addText(t, s, "newest", base.Add(2*time.Second))
+	regular, _ := addText(t, s, "regular", base.Add(3*time.Second))
+
+	for _, it := range []*Item{oldest, middle, newest} {
+		if _, err := s.TogglePin(it.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetPinnedPriority([]string{middle.ID, oldest.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := s.List("")
+	want := []string{"middle", "oldest", "newest", regular.Text}
+	for idx := range want {
+		if got[idx].Text != want[idx] {
+			t.Fatalf("List()[%d] = %q, want %q", idx, got[idx].Text, want[idx])
+		}
+	}
+	if got[0].PinPriority != 1 || got[1].PinPriority != 2 || got[2].PinPriority != 0 {
+		t.Fatalf("priorities = %d, %d, %d, want 1, 2, 0", got[0].PinPriority, got[1].PinPriority, got[2].PinPriority)
+	}
+
+	pinned := s.ListPinned()
+	if len(pinned) != 3 || pinned[0].Text != "middle" || pinned[2].Text != "newest" {
+		t.Fatalf("ListPinned() = %+v", pinned)
+	}
+}
+
+func TestPinnedPrioritySurvivesRecopyAndSearch(t *testing.T) {
+	s := newStore(t, 10)
+	base := time.Now()
+	priority, _ := addText(t, s, "priority match", base)
+	automatic, _ := addText(t, s, "automatic match", base.Add(time.Second))
+	for _, it := range []*Item{priority, automatic} {
+		if _, err := s.TogglePin(it.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetPinnedPriority([]string{priority.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	addText(t, s, "priority match", base.Add(3*time.Second))
+	got := s.List("match")
+	if got[0].ID != priority.ID || got[0].PinPriority != 1 {
+		t.Fatalf("priority entry moved after recopy: %+v", got)
+	}
+
+	addText(t, s, "automatic match", base.Add(4*time.Second))
+	got = s.List("match")
+	if got[0].ID != priority.ID || got[1].ID != automatic.ID {
+		t.Fatalf("automatic recopy crossed priority prefix: %+v", got)
+	}
+}
+
+func TestSetPinnedPriorityValidationIsTransactional(t *testing.T) {
+	s := newStore(t, 10)
+	base := time.Now()
+	first, _ := addText(t, s, "first", base)
+	second, _ := addText(t, s, "second", base.Add(time.Second))
+	unpinned, _ := addText(t, s, "unpinned", base.Add(2*time.Second))
+	for _, it := range []*Item{first, second} {
+		if _, err := s.TogglePin(it.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetPinnedPriority([]string{first.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, ids := range [][]string{{second.ID, second.ID}, {"missing"}, {unpinned.ID}} {
+		if err := s.SetPinnedPriority(ids); err == nil {
+			t.Fatalf("SetPinnedPriority(%v) succeeded", ids)
+		}
+		got := s.ListPinned()
+		if got[0].ID != first.ID || got[0].PinPriority != 1 || got[1].PinPriority != 0 {
+			t.Fatalf("failed update changed priorities: %+v", got)
+		}
+	}
+}
+
+func TestUnpinAndRepinReturnsToAutomaticOrdering(t *testing.T) {
+	s := newStore(t, 10)
+	item, _ := addText(t, s, "item", time.Now())
+	if _, err := s.TogglePin(item.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPinnedPriority([]string{item.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TogglePin(item.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TogglePin(item.ID); err != nil {
+		t.Fatal(err)
+	}
+	got := s.ListPinned()
+	if len(got) != 1 || got[0].PinPriority != 0 {
+		t.Fatalf("repinned item = %+v, want automatic priority", got)
+	}
+}
+
+func TestClearCanPreservePinnedEntries(t *testing.T) {
+	s := newStore(t, 10)
+	base := time.Now()
+	pinned, _ := addText(t, s, "pinned", base)
+	addText(t, s, "regular", base.Add(time.Second))
+	if _, err := s.TogglePin(pinned.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPinnedPriority([]string{pinned.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	s.Clear(false)
+	got := s.List("")
+	if len(got) != 1 || got[0].ID != pinned.ID || got[0].PinPriority != 1 {
+		t.Fatalf("Clear(false) = %+v, want prioritised pinned entry", got)
+	}
+
+	s.Clear(true)
+	if s.Count() != 0 {
+		t.Fatalf("Clear(true) left %d entries", s.Count())
+	}
+}
+
+func TestClearPreservesOnlyPinnedImageBlobs(t *testing.T) {
+	s := newStore(t, 10)
+	pinned, _, err := s.Add(Capture{
+		Kind: KindImage, Image: pngBytes(t, 3, 3, color.Black), At: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	regular, _, err := s.Add(Capture{
+		Kind: KindImage, Image: pngBytes(t, 4, 4, color.White), At: time.Now().Add(time.Second),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TogglePin(pinned.ID); err != nil {
+		t.Fatal(err)
+	}
+	pinnedBlob := filepath.Join(s.blobDir, pinned.ImageFile)
+	regularBlob := filepath.Join(s.blobDir, regular.ImageFile)
+
+	s.Clear(false)
+	if _, err := os.Stat(pinnedBlob); err != nil {
+		t.Fatalf("pinned blob was removed: %v", err)
+	}
+	if _, err := os.Stat(regularBlob); !os.IsNotExist(err) {
+		t.Fatalf("regular blob still exists after clear: %v", err)
+	}
+
+	s.Clear(true)
+	if _, err := os.Stat(pinnedBlob); !os.IsNotExist(err) {
+		t.Fatalf("pinned blob still exists after inclusive clear: %v", err)
+	}
+}
+
 func TestSearch(t *testing.T) {
 	s := newStore(t, 10)
 	base := time.Now()
@@ -253,7 +419,7 @@ func TestDeleteAndClear(t *testing.T) {
 		t.Error("deleting a missing entry should error")
 	}
 
-	s.Clear()
+	s.Clear(true)
 	if s.Count() != 0 {
 		t.Errorf("Count after clear = %d, want 0", s.Count())
 	}
@@ -341,6 +507,48 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	list := reopened.List("")
 	if !list[0].Pinned || list[0].Text != "pinned-entry" {
 		t.Errorf("pin state lost across restart: %+v", list[0])
+	}
+}
+
+func TestPinnedPriorityPersistenceAndNormalisation(t *testing.T) {
+	dir := t.TempDir()
+	base := time.Now().Truncate(time.Millisecond)
+	items := []*Item{
+		{ID: "manual-newer", Kind: KindText, Text: "manual newer", Hash: "a", FirstCopy: base, LastCopy: base.Add(2 * time.Second), Pinned: true, PinPriority: 7},
+		{ID: "automatic", Kind: KindText, Text: "automatic", Hash: "b", FirstCopy: base, LastCopy: base.Add(3 * time.Second), Pinned: true},
+		{ID: "manual-older", Kind: KindText, Text: "manual older", Hash: "c", FirstCopy: base, LastCopy: base, Pinned: true, PinPriority: 7},
+		{ID: "not-pinned", Kind: KindText, Text: "not pinned", Hash: "d", FirstCopy: base, LastCopy: base.Add(time.Second), PinPriority: 9},
+	}
+	raw, err := json.Marshal(items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "history.json"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := OpenAt(dir, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := s.List("")
+	if got[0].ID != "manual-newer" || got[0].PinPriority != 1 || got[1].ID != "manual-older" || got[1].PinPriority != 2 {
+		t.Fatalf("normalised manual order = %+v", got)
+	}
+	if item, ok := s.Get("not-pinned"); !ok || item.PinPriority != 0 {
+		t.Fatalf("unpinned stale priority was not cleared: %+v, %v", item, ok)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := OpenAt(dir, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if got := reopened.ListPinned(); len(got) != 3 || got[0].PinPriority != 1 || got[1].PinPriority != 2 || got[2].PinPriority != 0 {
+		t.Fatalf("persisted priorities = %+v", got)
 	}
 }
 
