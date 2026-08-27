@@ -78,7 +78,7 @@ FEATURES
 • Notifications on copy and on reuse, each one switchable on its own
 • Choosing an entry returns you to the app you came from, so pasting is one ⌘V
 • Copying the same thing again bumps the entry you already have and raises its counter, instead of filling the list with duplicates
-• Local day, week, month and year statistics for text, images and repeated copies, stored as bounded counters rather than per-copy events
+• One combined day, week, month or year chart compares all copies, text, images and repeated copies, with independently hideable series and bounded counters rather than per-copy events
 • Every entry records the app it came from, with its icon, and when you first and last copied it
 • Point at any row for a card with the full text, its length, and its history
 • Pin the entries you use every day, arrange their priority, and keep them safe when clearing routine history
@@ -118,13 +118,18 @@ For the first submission this field is not shown. From the second version on,
 paste that release's section from `CHANGELOG.md`, rewritten for users rather
 than for the repository.
 
-For version 0.10.1:
+For version 0.11.0, covering user-visible changes since version 0.10.0:
 
 ```
-Popup rows now share one compact space between their numeric shortcut and pin
-control. Point at an unpinned entry to replace its shortcut with the pin button;
-pinned entries keep their pin visible. Clipboard content has more room and no
-longer shifts when the control changes.
+Statistics now shows All copies, Text, Images and Repeated together in one chart,
+so trends are easier to compare. Click any metric card to hide or restore its
+line; hidden cards fade so the current view stays clear. Move anywhere across
+the chart to inspect the nearest time period and see every visible value in one
+tooltip—there is no need to hit an exact point.
+
+Popup rows also share one compact space between their numeric shortcut and pin
+control. Point at an unpinned entry to reveal the pin button; pinned entries keep
+their pin visible, and clipboard content no longer shifts when controls change.
 ```
 
 ## 8. App Privacy
