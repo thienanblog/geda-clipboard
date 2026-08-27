@@ -70,11 +70,11 @@ const showDetail = computed(
 )
 
 /** How many characters of a row's label actually fit. The reserved slice
- *  covers the row padding, the pin glyph and the ⌘n accelerator; 6.6px is the
- *  average advance of the 13px UI font. */
+ *  covers the row padding and the shared trailing slot for the pin or ⌘n
+ *  accelerator; 6.6px is the average advance of the 13px UI font. */
 const labelBudget = computed(() => {
   if (listWidth.value === 0) return 60
-  return Math.max(16, Math.min(160, Math.round((listWidth.value - 115) / 6.6)))
+  return Math.max(16, Math.min(160, Math.round((listWidth.value - 85) / 6.6)))
 })
 
 function label(item: store.Item): string {
@@ -574,26 +574,31 @@ onUnmounted(() => {
           >
             <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="thumb" alt="" />
             <span v-else class="label">{{ label(item) }}</span>
-            <span class="accel">{{ accelerator(index) }}</span>
           </button>
 
-          <button
-            class="pin-action"
-            :class="{ pinned: item.pinned }"
-            type="button"
-            :title="item.pinned ? 'Unpin entry' : 'Pin entry'"
-            :aria-label="`${item.pinned ? 'Unpin' : 'Pin'} ${rowDescription(item)}`"
-            @mousedown="keepSearchFocus"
-            @keydown.enter.stop.prevent="togglePin(index)"
-            @click.stop="togglePin(index)"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M9.5 1.5 14.5 6.5l-1.9.5-3 3 .4 3.3-1.3.5-2.2-3.4-3.6 3.6-.7-.7 3.6-3.6L2.4 7.5l.5-1.3 3.3.4 3-3 .3-2.1Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
+          <!-- The accelerator and pin occupy one fixed slot so revealing the
+               mouse action never shifts or shortens the row content. A pinned
+               entry keeps its state visible at rest; an unpinned entry shows
+               its numeric accelerator until the pointer reaches the row. -->
+          <div class="row-trailing" :class="{ pinned: item.pinned }">
+            <span class="row-accel accel" aria-hidden="true">{{ accelerator(index) }}</span>
+            <button
+              class="pin-action"
+              type="button"
+              :title="item.pinned ? 'Unpin entry' : 'Pin entry'"
+              :aria-label="`${item.pinned ? 'Unpin' : 'Pin'} ${rowDescription(item)}`"
+              @mousedown="keepSearchFocus"
+              @keydown.enter.stop.prevent="togglePin(index)"
+              @click.stop="togglePin(index)"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M9.5 1.5 14.5 6.5l-1.9.5-3 3 .4 3.3-1.3.5-2.2-3.4-3.6 3.6-.7-.7 3.6-3.6L2.4 7.5l.5-1.3 3.3.4 3-3 .3-2.1Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -774,19 +779,39 @@ onUnmounted(() => {
   color: var(--accent-fg);
 }
 
+.row-trailing {
+  position: relative;
+  width: 27px;
+  height: 27px;
+  margin-right: 3px;
+  flex: none;
+}
+
+.row-accel,
+.pin-action {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.1s ease;
+}
+
+.row-accel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .pin-action {
   display: grid;
   width: 27px;
   height: 27px;
-  margin-right: 3px;
   padding: 6px;
   place-items: center;
   border: 0;
   border-radius: 5px;
   background: transparent;
   color: inherit;
-  flex: none;
   opacity: 0;
+  pointer-events: none;
   cursor: default;
 }
 
@@ -795,11 +820,17 @@ onUnmounted(() => {
   height: 13px;
 }
 
-.pin-action.pinned,
+.row-trailing.pinned .row-accel,
+.row-shell:hover .row-accel,
+.row-trailing:focus-within .row-accel {
+  opacity: 0;
+}
+
+.row-trailing.pinned .pin-action,
 .row-shell:hover .pin-action,
-.row-selected .pin-action,
 .pin-action:focus-visible {
   opacity: 0.82;
+  pointer-events: auto;
 }
 
 .pin-action:hover,

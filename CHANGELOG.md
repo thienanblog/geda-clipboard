@@ -9,6 +9,16 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-27
+
+### Fixed
+
+- **Popup rows no longer reserve separate space for the numeric shortcut and
+  pin control.** An unpinned row shows its `⌘1`–`⌘9` shortcut until the pointer
+  reaches it, then replaces the shortcut with the pin button in the same fixed
+  slot. Pinned rows keep the pin visible, and row content gains room without
+  shifting when the control changes.
+
 ## [0.10.0] - 2026-08-27
 
 ### Added
@@ -377,7 +387,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.0...v0.8.2
