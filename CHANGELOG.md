@@ -9,6 +9,19 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-27
+
+### Changed
+
+- **Statistics now compares every copy metric in one chart.** All copies is
+  emphasised while Text, Images and Repeated remain visible as supporting
+  series. Each summary card independently hides or shows its line, and hidden
+  cards fade instead of becoming a selected chart mode.
+- **Chart inspection no longer requires hitting an exact data point.** Moving
+  anywhere across the plot selects the nearest time bucket, draws a shared
+  guide and shows the values of every visible metric in one tooltip. The same
+  buckets remain available from the keyboard and screen readers.
+
 ## [0.10.1] - 2026-08-27
 
 ### Fixed
@@ -387,7 +400,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.8.2...v0.9.0
