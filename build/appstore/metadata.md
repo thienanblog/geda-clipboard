@@ -118,13 +118,13 @@ For the first submission this field is not shown. From the second version on,
 paste that release's section from `CHANGELOG.md`, rewritten for users rather
 than for the repository.
 
-For version 0.10.0:
+For version 0.10.1:
 
 ```
-Pinned clipboard entries can now be arranged in a priority order from the new
-Pinned preferences tab. New Compact, Comfortable and Large image preview sizes
-let you choose how much detail the popup shows. Clearing history keeps pinned
-entries by default, with an optional setting to include them.
+Popup rows now share one compact space between their numeric shortcut and pin
+control. Point at an unpinned entry to replace its shortcut with the pin button;
+pinned entries keep their pin visible. Clipboard content has more room and no
+longer shifts when the control changes.
 ```
 
 ## 8. App Privacy
