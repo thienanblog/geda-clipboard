@@ -22,6 +22,15 @@
     <channel>
         <title>Geda Clipboard</title>
         <item>
+            <title>0.10.1</title>
+            <pubDate>Thu, 27 Aug 2026 12:37:54 +0700</pubDate>
+            <link>https://github.com/thienanblog/geda-clipboard</link>
+            <sparkle:version>0.10.1</sparkle:version>
+            <sparkle:shortVersionString>0.10.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/thienanblog/geda-clipboard/releases/download/v0.10.1/geda-clipboard-0.10.1-macos-universal.zip" length="9146448" type="application/octet-stream" sparkle:edSignature="vqfgDlsFu8R9iZJ8HzbR59HYedgZzcOivoWBXp4eI74pheF+qSxGTV1+LP0PfKScMasu3lFy3D9TKl5klIH2Cg=="/>
+        </item>
+        <item>
             <title>0.10.0</title>
             <pubDate>Thu, 27 Aug 2026 10:49:17 +0700</pubDate>
             <link>https://github.com/thienanblog/geda-clipboard</link>
@@ -38,15 +47,6 @@
             <sparkle:shortVersionString>0.9.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/thienanblog/geda-clipboard/releases/download/v0.9.0/geda-clipboard-0.9.0-macos-universal.zip" length="9132033" type="application/octet-stream" sparkle:edSignature="djXhqlDZDJaP/X9rJ9ODnca1xmxZsPlvShiYFAnnMBNrX8gRVJzrBGfWlmrMi0dDdJncoaw8E0Zhu+8cfRReAg=="/>
-        </item>
-        <item>
-            <title>0.8.2</title>
-            <pubDate>Mon, 24 Aug 2026 20:30:05 +0700</pubDate>
-            <link>https://github.com/thienanblog/geda-clipboard</link>
-            <sparkle:version>0.8.2</sparkle:version>
-            <sparkle:shortVersionString>0.8.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/thienanblog/geda-clipboard/releases/download/v0.8.2/geda-clipboard-0.8.2-macos-universal.zip" length="9100387" type="application/octet-stream" sparkle:edSignature="Pdy6wJkqQDbiQgUdpmwyoxO8g1rJZH0hQbHSF+iamYefVaO8O50Xl/+VvhhqCwhG+9dy2rX9aI7hSA747vmeBg=="/>
         </item>
     </channel>
 </rss>
