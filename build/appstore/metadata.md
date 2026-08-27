@@ -121,15 +121,10 @@ than for the repository.
 For version 0.11.0, covering user-visible changes since version 0.10.0:
 
 ```
-Statistics now shows All copies, Text, Images and Repeated together in one chart,
-so trends are easier to compare. Click any metric card to hide or restore its
-line; hidden cards fade so the current view stays clear. Move anywhere across
-the chart to inspect the nearest time period and see every visible value in one
-tooltip—there is no need to hit an exact point.
-
-Popup rows also share one compact space between their numeric shortcut and pin
-control. Point at an unpinned entry to reveal the pin button; pinned entries keep
-their pin visible, and clipboard content no longer shifts when controls change.
+• Compare All copies, Text, Images and Repeated in one chart
+• Click any metric to hide or show its line
+• Hover anywhere on the chart to inspect the nearest time period
+• Popup rows now share one compact space for shortcuts and pin controls
 ```
 
 ## 8. App Privacy
