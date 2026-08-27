@@ -185,9 +185,10 @@ func (s *Settings) normalise() {
 
 // Manager loads, serves and saves the settings.
 type Manager struct {
-	mu      sync.RWMutex
-	current Settings
-	path    string
+	mu           sync.RWMutex
+	current      Settings
+	path         string
+	needsWelcome bool
 
 	// onChange is invoked after every successful save so the app can react to
 	// e.g. a new hotkey or history limit.
@@ -204,6 +205,7 @@ func Load() (*Manager, error) {
 	if err != nil {
 		// No data directory at all. Serve defaults from memory; Save will
 		// report that it has nowhere to write.
+		m.needsWelcome = true
 		return m, err
 	}
 	m.path = filepath.Join(dir, "settings.json")
@@ -211,6 +213,7 @@ func Load() (*Manager, error) {
 	raw, err := os.ReadFile(m.path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
+			m.needsWelcome = true
 			return m, nil
 		}
 		return m, err
@@ -230,6 +233,33 @@ func Load() (*Manager, error) {
 	loaded.normalise()
 	m.current = loaded
 	return m, nil
+}
+
+// NeedsWelcome reports whether this installation has ever completed its
+// first-run introduction. The settings file itself is the marker: completing
+// the introduction persists the current defaults even when the user has not
+// changed a preference yet.
+func (m *Manager) NeedsWelcome() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.needsWelcome
+}
+
+// CompleteWelcome marks the first-run introduction as seen and persists the
+// current settings. The in-memory marker is cleared even if persistence fails,
+// so a read-only configuration directory cannot trap the user on the Welcome
+// screen for the rest of the running session; the next launch will try again.
+func (m *Manager) CompleteWelcome() error {
+	m.mu.Lock()
+	m.needsWelcome = false
+	s := m.current
+	path := m.path
+	m.mu.Unlock()
+
+	if path == "" {
+		return errors.New("no data directory: welcome state cannot be saved")
+	}
+	return write(path, s)
 }
 
 // OnChange registers a callback invoked after each save.
@@ -262,17 +292,21 @@ func (m *Manager) Save(s Settings) (Settings, error) {
 		return s, errors.New("no data directory: preferences cannot be saved")
 	}
 
-	data, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return s, err
-	}
-	if err := appdir.WriteAtomic(path, data, 0o600); err != nil {
+	if err := write(path, s); err != nil {
 		return s, err
 	}
 	if cb != nil {
 		cb(s)
 	}
 	return s, nil
+}
+
+func write(path string, s Settings) error {
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	return appdir.WriteAtomic(path, data, 0o600)
 }
 
 // IsIgnored reports whether copies from app should be dropped.

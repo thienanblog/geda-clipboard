@@ -292,8 +292,8 @@ jobs:
 
           Or unzip, move `Geda Clipboard.app` to `/Applications`, and open it.
           The build is signed and notarized, so Gatekeeper lets it through
-          without any extra step. Geda has no window of its own: look for its
-          icon in the menu bar.
+          without any extra step. A Welcome window points out Geda's menu bar
+          icon and shortcut the first time it opens.
 
           To paste an earlier entry back into the app you came from, Geda needs
           Accessibility permission — it asks the first time, and everything
@@ -309,16 +309,16 @@ jobs:
           ```
 
           Without this, Gatekeeper reports the app as damaged, which is what an
-          unsigned download looks like to it. Geda has no window of its own:
-          look for its icon in the menu bar.
+          unsigned download looks like to it. A Welcome window points out
+          Geda's menu bar icon and shortcut the first time it opens.
           EOF
           fi
 
           cat >> notes.md <<'EOF'
 
           **Windows** — unzip and run `Geda Clipboard.exe`. SmartScreen shows a
-          warning: choose **More info › Run anyway**. The app lives in the
-          notification area.
+          warning: choose **More info › Run anyway**. A Welcome window points
+          out the notification-area icon and shortcut the first time it opens.
           EOF
 
       - name: Publish the release

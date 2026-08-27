@@ -14,6 +14,10 @@ export function ClearHistoryAndStatistics() {
   return window['go']['main']['App']['ClearHistoryAndStatistics']();
 }
 
+export function CompleteWelcome(arg1) {
+  return window['go']['main']['App']['CompleteWelcome'](arg1);
+}
+
 export function CopyOnly(arg1) {
   return window['go']['main']['App']['CopyOnly'](arg1);
 }
@@ -34,6 +38,10 @@ export function Env() {
   return window['go']['main']['App']['Env']();
 }
 
+export function FrontendReady() {
+  return window['go']['main']['App']['FrontendReady']();
+}
+
 export function FullImage(arg1) {
   return window['go']['main']['App']['FullImage'](arg1);
 }
@@ -48,6 +56,10 @@ export function GetStatistics(arg1) {
 
 export function HidePopup() {
   return window['go']['main']['App']['HidePopup']();
+}
+
+export function InitialView() {
+  return window['go']['main']['App']['InitialView']();
 }
 
 export function List(arg1) {

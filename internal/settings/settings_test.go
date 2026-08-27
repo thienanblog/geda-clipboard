@@ -71,6 +71,9 @@ func TestLoadAlwaysReturnsAUsableManager(t *testing.T) {
 	if got := m.Get(); got.MaxItems != Defaults().MaxItems {
 		t.Errorf("MaxItems = %d, want the default %d", got.MaxItems, Defaults().MaxItems)
 	}
+	if !m.NeedsWelcome() {
+		t.Error("installation with no data directory should still show Welcome in memory")
+	}
 
 	if err == nil {
 		t.Skip("this platform resolved a config directory anyway")
@@ -79,6 +82,12 @@ func TestLoadAlwaysReturnsAUsableManager(t *testing.T) {
 	// the working directory.
 	if _, err := m.Save(Defaults()); err == nil {
 		t.Error("Save with no data directory should return an error")
+	}
+	if err := m.CompleteWelcome(); err == nil {
+		t.Error("completing Welcome with no data directory should return an error")
+	}
+	if m.NeedsWelcome() {
+		t.Error("failed persistence should not trap this session on Welcome")
 	}
 }
 
@@ -158,6 +167,52 @@ func writeSettingsFile(t *testing.T, body string) {
 	}
 	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(body), 0o600); err != nil {
 		t.Fatalf("write settings: %v", err)
+	}
+}
+
+func useEmptySettingsDirectory(t *testing.T) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("AppData", filepath.Join(home, "AppData"))
+}
+
+func TestFreshInstallNeedsWelcomeUntilCompletionIsPersisted(t *testing.T) {
+	useEmptySettingsDirectory(t)
+
+	m, err := Load()
+	if err != nil {
+		t.Fatalf("load fresh settings: %v", err)
+	}
+	if !m.NeedsWelcome() {
+		t.Fatal("fresh install does not need Welcome")
+	}
+	if err := m.CompleteWelcome(); err != nil {
+		t.Fatalf("complete Welcome: %v", err)
+	}
+	if m.NeedsWelcome() {
+		t.Fatal("completed Welcome still marked as needed")
+	}
+
+	reloaded, err := Load()
+	if err != nil {
+		t.Fatalf("reload settings: %v", err)
+	}
+	if reloaded.NeedsWelcome() {
+		t.Fatal("Welcome completion was not persisted")
+	}
+}
+
+func TestStoredSettingsSkipWelcome(t *testing.T) {
+	writeSettingsFile(t, `{"popupWidth":420,"popupHeight":520,"layoutVersion":1}`)
+
+	m, err := Load()
+	if err != nil {
+		t.Fatalf("load stored settings: %v", err)
+	}
+	if m.NeedsWelcome() {
+		t.Fatal("existing settings unexpectedly need Welcome")
 	}
 }
 

@@ -12,6 +12,8 @@ export function ClearAll():Promise<void>;
 
 export function ClearHistoryAndStatistics():Promise<void>;
 
+export function CompleteWelcome(arg1:boolean):Promise<void>;
+
 export function CopyOnly(arg1:string):Promise<void>;
 
 export function Count():Promise<number>;
@@ -22,6 +24,8 @@ export function Delete(arg1:string):Promise<void>;
 
 export function Env():Promise<main.Environment>;
 
+export function FrontendReady():Promise<void>;
+
 export function FullImage(arg1:string):Promise<string>;
 
 export function GetSettings():Promise<settings.Settings>;
@@ -29,6 +33,8 @@ export function GetSettings():Promise<settings.Settings>;
 export function GetStatistics(arg1:string):Promise<statistics.Snapshot>;
 
 export function HidePopup():Promise<void>;
+
+export function InitialView():Promise<string>;
 
 export function List(arg1:string):Promise<Array<store.Item>>;
 

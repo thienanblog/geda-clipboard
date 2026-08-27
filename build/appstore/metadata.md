@@ -118,13 +118,11 @@ For the first submission this field is not shown. From the second version on,
 paste that release's section from `CHANGELOG.md`, rewritten for users rather
 than for the repository.
 
-For version 0.11.0, covering user-visible changes since version 0.10.0:
+For version 0.12.0:
 
 ```
-• Compare All copies, Text, Images and Repeated in one chart
-• Click any metric to hide or show its line
-• Hover anywhere on the chart to inspect the nearest time period
-• Popup rows now share one compact space for shortcuts and pin controls
+• A new Welcome window shows where Geda lives and how to open your clipboard history
+• Opening Geda again while it is already running now brings the clipboard popup forward
 ```
 
 ## 8. App Privacy
@@ -225,7 +223,7 @@ The app icon is taken from the bundle's `iconfile.icns`, built from
 Notes for the reviewer:
 
 ```
-Geda Clipboard is a menu bar utility. It has no window of its own and no Dock icon, so nothing appears when it is launched: its icon is in the menu bar at the top right of the screen. Click that icon, or press Shift-Command-V, to open the popup.
+Geda Clipboard is a menu bar utility with no Dock icon. Its first launch opens a short Welcome window that identifies the menu bar icon and the Shift-Command-V shortcut. After the introduction, it starts quietly with its icon in the menu bar at the top right of the screen. Click that icon, press Shift-Command-V, or open the app again while it is already running to show the popup.
 
 Copy some text in any app first so the history has something in it.
 
