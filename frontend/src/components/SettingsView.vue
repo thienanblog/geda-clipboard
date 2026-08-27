@@ -2,17 +2,19 @@
 /** Tabbed preferences and About. Changes are saved as soon as they are made,
  *  which is what a menu bar utility should do -- there is no OK/Cancel. */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import type { main, settings } from '../../wailsjs/go/models'
+import type { main, settings, store } from '../../wailsjs/go/models'
 import * as App from '../../wailsjs/go/main/App'
-import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
+import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime'
+import { rowLabel } from '../lib/format'
 import { eventToSpec, formatHotkey } from '../lib/keys'
 import StatisticsView from './StatisticsView.vue'
 
-type SettingsTab = 'general' | 'clipboard' | 'privacy' | 'statistics' | 'about'
+type SettingsTab = 'general' | 'clipboard' | 'pinned' | 'privacy' | 'statistics' | 'about'
 
 const settingsTabs: Array<{ value: SettingsTab; label: string }> = [
   { value: 'general', label: 'General' },
   { value: 'clipboard', label: 'Clipboard' },
+  { value: 'pinned', label: 'Pinned' },
   { value: 'privacy', label: 'Privacy' },
   { value: 'statistics', label: 'Statistics' },
   { value: 'about', label: 'About' },
@@ -77,6 +79,13 @@ const isMac = computed(() => props.env?.platform === 'darwin')
  *  arrive through the App Store instead. Hiding the control is the honest
  *  thing -- a button that cannot do anything is worse than no button. */
 const canUpdate = ref(false)
+const pinnedItems = ref<store.Item[]>([])
+const draggedPinnedID = ref('')
+const pinnedBusy = ref(false)
+let pinnedLoadGeneration = 0
+
+const priorityItems = computed(() => pinnedItems.value.filter((item) => (item.pinPriority ?? 0) > 0))
+const automaticItems = computed(() => pinnedItems.value.filter((item) => (item.pinPriority ?? 0) === 0))
 
 async function load(): Promise<void> {
   cfg.value = await App.GetSettings()
@@ -90,6 +99,118 @@ async function load(): Promise<void> {
     notifyStatus.value = 'unknown'
   }
   canUpdate.value = await App.UpdatesSupported()
+}
+
+async function loadPinned(): Promise<void> {
+  const generation = ++pinnedLoadGeneration
+  try {
+    const items = await App.ListPinned()
+    if (generation === pinnedLoadGeneration) pinnedItems.value = items
+  } catch (err) {
+    if (generation === pinnedLoadGeneration) {
+      pinnedItems.value = []
+      flash(String(err))
+    }
+  }
+}
+
+function pinnedLabel(item: store.Item): string {
+  const label = rowLabel(item, 80)
+  return item.kind === 'image' && item.imageW && item.imageH
+    ? `${label} · ${item.imageW} × ${item.imageH}`
+    : label
+}
+
+async function savePinnedPriority(ids: string[]): Promise<void> {
+  if (pinnedBusy.value) return
+  pinnedBusy.value = true
+  try {
+    await App.SetPinnedPriority(ids)
+    await loadPinned()
+  } catch (err) {
+    flash(String(err))
+    await loadPinned()
+  } finally {
+    pinnedBusy.value = false
+  }
+}
+
+function priorityIDs(): string[] {
+  return priorityItems.value.map((item) => item.id)
+}
+
+function prioritise(item: store.Item): void {
+  void savePinnedPriority([...priorityIDs(), item.id])
+}
+
+function movePriority(index: number, delta: number): void {
+  const ids = priorityIDs()
+  const target = index + delta
+  if (target < 0 || target >= ids.length) return
+  const moved = ids[index]
+  ids[index] = ids[target]
+  ids[target] = moved
+  void savePinnedPriority(ids)
+}
+
+function returnToAutomatic(item: store.Item): void {
+  void savePinnedPriority(priorityIDs().filter((id) => id !== item.id))
+}
+
+function resetPinnedPriority(): void {
+  void savePinnedPriority([])
+}
+
+async function unpin(item: store.Item): Promise<void> {
+  if (pinnedBusy.value) return
+  pinnedBusy.value = true
+  try {
+    await App.TogglePin(item.id)
+    await loadPinned()
+  } catch (err) {
+    flash(String(err))
+    await loadPinned()
+  } finally {
+    pinnedBusy.value = false
+  }
+}
+
+function onPinnedDragStart(item: store.Item, event: DragEvent): void {
+  if (pinnedBusy.value) {
+    event.preventDefault()
+    return
+  }
+  draggedPinnedID.value = item.id
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', item.id)
+  }
+}
+
+function onPinnedDragEnd(): void {
+  draggedPinnedID.value = ''
+}
+
+function draggedID(event: DragEvent): string {
+  return draggedPinnedID.value || event.dataTransfer?.getData('text/plain') || ''
+}
+
+function dropIntoPriority(index: number, event: DragEvent): void {
+  event.preventDefault()
+  const id = draggedID(event)
+  if (!pinnedItems.value.some((item) => item.id === id)) return
+  const ids = priorityIDs().filter((current) => current !== id)
+  ids.splice(Math.max(0, Math.min(index, ids.length)), 0, id)
+  draggedPinnedID.value = ''
+  void savePinnedPriority(ids)
+}
+
+function dropIntoAutomatic(event: DragEvent): void {
+  event.preventDefault()
+  const id = draggedID(event)
+  if (!id) return
+  draggedPinnedID.value = ''
+  void savePinnedPriority(priorityIDs().filter((current) => current !== id))
 }
 
 /** macOS never tells a running application that a permission was granted, so
@@ -189,7 +310,11 @@ async function resetDefaults(): Promise<void> {
 }
 
 async function clearHistoryAndStatistics(): Promise<void> {
-  if (!window.confirm('Clear all clipboard history and local statistics? This cannot be undone.')) return
+  if (!cfg.value) return
+  const message = cfg.value.clearPinnedOnHistoryClear
+    ? 'Clear all clipboard history, including pinned entries, and local statistics? This cannot be undone.'
+    : 'Clear unpinned clipboard history and all local statistics? Pinned entries will be kept.'
+  if (!window.confirm(message)) return
   try {
     await App.ClearHistoryAndStatistics()
     flash('History and statistics cleared')
@@ -255,16 +380,22 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+let disposers: Array<() => void> = []
+
 onMounted(() => {
   void load()
+  void loadPinned()
   window.addEventListener('keydown', onKeydown, true)
   window.addEventListener('focus', refreshPermissions)
+  disposers.push(EventsOn('history:changed', () => void loadPinned()))
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown, true)
   window.removeEventListener('focus', refreshPermissions)
   window.clearTimeout(statusTimer)
+  disposers.forEach((dispose) => dispose())
+  disposers = []
 })
 </script>
 
@@ -363,6 +494,14 @@ onUnmounted(() => {
             <input v-model.number="cfg.popupHeight" class="num" type="number" min="240" max="1200" step="20" @change="onNumberChange('popupHeight')" />
             <span class="field-suffix">px</span>
           </div>
+          <div class="field">
+            <label class="field-label" for="image-preview-size">Image preview size</label>
+            <select id="image-preview-size" v-model="cfg.imagePreviewSize" class="select" @change="save">
+              <option value="compact">Compact</option>
+              <option value="comfortable">Comfortable</option>
+              <option value="large">Large</option>
+            </select>
+          </div>
         </section>
 
         <section>
@@ -407,6 +546,107 @@ onUnmounted(() => {
             <button class="btn" type="button" @click="requestPastePermission">Grant Accessibility permission…</button>
             <button class="btn" type="button" @click="openPasteSettings">Open Accessibility settings…</button>
           </div>
+        </section>
+      </template>
+
+      <template v-else-if="tab === 'pinned' && cfg">
+        <section>
+          <h2>Priority</h2>
+          <p class="hint pinned-intro">
+            Priority entries stay in your chosen order. Everything else pinned remains below
+            them and follows the most recent copy time.
+          </p>
+
+          <div
+            class="pinned-list priority-list"
+            role="list"
+            aria-label="Priority pinned clipboard entries"
+            @dragover.prevent
+            @drop="dropIntoPriority(priorityItems.length, $event)"
+          >
+            <p v-if="pinnedItems.length === 0" class="pinned-empty">No pinned clipboard entries yet.</p>
+            <p v-else-if="priorityItems.length === 0" class="pinned-empty">
+              Drag an automatic entry here or choose Prioritise.
+            </p>
+            <div
+              v-for="(item, index) in priorityItems"
+              :key="item.id"
+              class="pinned-row"
+              :class="{ dragging: draggedPinnedID === item.id }"
+              role="listitem"
+              :draggable="!pinnedBusy"
+              @dragstart="onPinnedDragStart(item, $event)"
+              @dragend="onPinnedDragEnd"
+              @dragover.prevent
+              @drop.stop="dropIntoPriority(index, $event)"
+            >
+              <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+              <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="pinned-thumb" alt="" />
+              <span v-else class="pinned-kind" aria-hidden="true">T</span>
+              <span class="pinned-copy">
+                <strong>{{ pinnedLabel(item) }}</strong>
+                <small>{{ item.sourceApp || 'Unknown application' }}</small>
+              </span>
+              <span class="pinned-actions">
+                <button type="button" :disabled="pinnedBusy || index === 0" :aria-label="`Move ${pinnedLabel(item)} up`" @click="movePriority(index, -1)">↑</button>
+                <button type="button" :disabled="pinnedBusy || index === priorityItems.length - 1" :aria-label="`Move ${pinnedLabel(item)} down`" @click="movePriority(index, 1)">↓</button>
+                <button type="button" :disabled="pinnedBusy" :aria-label="`Return ${pinnedLabel(item)} to automatic order`" @click="returnToAutomatic(item)">Return to automatic</button>
+                <button type="button" class="danger-text" :disabled="pinnedBusy" :aria-label="`Unpin ${pinnedLabel(item)}`" @click="unpin(item)">Unpin</button>
+              </span>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn subtle" type="button" :disabled="pinnedBusy || priorityItems.length === 0" @click="resetPinnedPriority">
+              Reset automatic order
+            </button>
+          </div>
+        </section>
+
+        <section v-if="pinnedItems.length > 0">
+          <h2>Automatic</h2>
+          <div
+            class="pinned-list automatic-list"
+            role="list"
+            aria-label="Automatically ordered pinned clipboard entries"
+            @dragover.prevent
+            @drop="dropIntoAutomatic"
+          >
+            <p v-if="automaticItems.length === 0" class="pinned-empty">Every pinned entry is prioritised.</p>
+            <div
+              v-for="item in automaticItems"
+              :key="item.id"
+              class="pinned-row"
+              :class="{ dragging: draggedPinnedID === item.id }"
+              role="listitem"
+              :draggable="!pinnedBusy"
+              @dragstart="onPinnedDragStart(item, $event)"
+              @dragend="onPinnedDragEnd"
+            >
+              <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+              <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="pinned-thumb" alt="" />
+              <span v-else class="pinned-kind" aria-hidden="true">T</span>
+              <span class="pinned-copy">
+                <strong>{{ pinnedLabel(item) }}</strong>
+                <small>{{ item.sourceApp || 'Unknown application' }}</small>
+              </span>
+              <span class="pinned-actions">
+                <button type="button" :disabled="pinnedBusy" :aria-label="`Prioritise ${pinnedLabel(item)}`" @click="prioritise(item)">Prioritise</button>
+                <button type="button" class="danger-text" :disabled="pinnedBusy" :aria-label="`Unpin ${pinnedLabel(item)}`" @click="unpin(item)">Unpin</button>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2>History clearing</h2>
+          <label class="check">
+            <input v-model="cfg.clearPinnedOnHistoryClear" type="checkbox" @change="save" />
+            <span>
+              Clear pinned entries when clearing history
+              <em>Off by default, so routine history clearing keeps your pinned clipboard entries.</em>
+            </span>
+          </label>
         </section>
       </template>
 
@@ -695,6 +935,126 @@ textarea {
 }
 
 .btn.danger {
+  color: var(--danger);
+}
+
+.pinned-intro {
+  margin-bottom: 10px;
+}
+
+.pinned-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 42px;
+  padding: 5px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--field-bg) 72%, transparent);
+}
+
+.priority-list {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--panel-border));
+}
+
+.pinned-empty {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--fg-faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+.pinned-row {
+  display: grid;
+  grid-template-columns: auto 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: var(--panel-bg);
+}
+
+.pinned-row.dragging {
+  opacity: 0.45;
+}
+
+.drag-handle {
+  color: var(--fg-faint);
+  font-size: 13px;
+  letter-spacing: -3px;
+  cursor: grab;
+}
+
+.pinned-thumb {
+  display: block;
+  width: 36px;
+  height: 30px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.pinned-kind {
+  display: grid;
+  width: 36px;
+  height: 30px;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--field-bg);
+  color: var(--fg-dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.pinned-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.pinned-copy strong,
+.pinned-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinned-copy strong {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.pinned-copy small {
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+
+.pinned-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.pinned-actions button {
+  padding: 3px 7px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  background: var(--field-bg);
+  color: var(--fg);
+  font-size: 11.5px;
+  cursor: default;
+}
+
+.pinned-actions button:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.pinned-actions button:disabled,
+.btn:disabled {
+  opacity: 0.42;
+}
+
+.pinned-actions .danger-text {
   color: var(--danger);
 }
 

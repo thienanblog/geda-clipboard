@@ -32,6 +32,8 @@ export function HidePopup():Promise<void>;
 
 export function List(arg1:string):Promise<Array<store.Item>>;
 
+export function ListPinned():Promise<Array<store.Item>>;
+
 export function NotificationStatus():Promise<string>;
 
 export function OnLeftClick(arg1:tray.Anchor):Promise<void>;
@@ -67,6 +69,8 @@ export function SaveSettings(arg1:settings.Settings):Promise<settings.Settings>;
 export function Select(arg1:string):Promise<void>;
 
 export function SendTestNotification():Promise<void>;
+
+export function SetPinnedPriority(arg1:Array<string>):Promise<void>;
 
 export function ShowSettings():Promise<void>;
 

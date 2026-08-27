@@ -10,7 +10,7 @@ import PopupView from './components/PopupView.vue'
 import SettingsView from './components/SettingsView.vue'
 
 type View = 'popup' | 'settings'
-type SettingsTab = 'general' | 'clipboard' | 'privacy' | 'statistics' | 'about'
+type SettingsTab = 'general' | 'clipboard' | 'pinned' | 'privacy' | 'statistics' | 'about'
 
 const view = ref<View>('popup')
 const settingsTab = ref<SettingsTab>('general')

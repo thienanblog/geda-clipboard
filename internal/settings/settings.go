@@ -22,6 +22,13 @@ const (
 	PlacementMenuBar = "menubar"
 )
 
+// Image preview size values used by Settings.ImagePreviewSize.
+const (
+	PreviewCompact     = "compact"
+	PreviewComfortable = "comfortable"
+	PreviewLarge       = "large"
+)
+
 // Settings mirrors the preferences surface exposed in the UI. Field names are
 // lowerCamelCase in JSON so the frontend can use them directly.
 type Settings struct {
@@ -75,6 +82,13 @@ type Settings struct {
 	// the cursor.
 	PreviewOnHover bool `json:"previewOnHover"`
 
+	// ImagePreviewSize controls image height in popup rows and the detail card.
+	ImagePreviewSize string `json:"imagePreviewSize"`
+
+	// ClearPinnedOnHistoryClear opts pinned entries into destructive history
+	// clearing. It defaults off so a routine clear cannot discard favourites.
+	ClearPinnedOnHistoryClear bool `json:"clearPinnedOnHistoryClear"`
+
 	// LayoutVersion records which popup layout the stored sizes were chosen
 	// for, so a layout change can adjust them once. The app owns it: whatever
 	// arrives from the preferences UI is overwritten on save.
@@ -89,22 +103,23 @@ const layoutFlyout = 1
 // Defaults returns the settings a fresh install starts with.
 func Defaults() Settings {
 	return Settings{
-		MaxItems:        200,
-		NotifyOnCopy:    true,
-		NotifyOnPaste:   true,
-		PasteOnSelect:   true,
-		Hotkey:          defaultHotkey,
-		LaunchAtLogin:   false,
-		ShowDockIcon:    false,
-		IgnoredApps:     []string{},
-		IgnoreConcealed: true,
-		IgnoreTransient: true,
-		CaptureImages:   true,
-		PopupWidth:      420,
-		PopupHeight:     520,
-		PopupPlacement:  PlacementCursor,
-		PreviewOnHover:  true,
-		LayoutVersion:   layoutFlyout,
+		MaxItems:         200,
+		NotifyOnCopy:     true,
+		NotifyOnPaste:    true,
+		PasteOnSelect:    true,
+		Hotkey:           defaultHotkey,
+		LaunchAtLogin:    false,
+		ShowDockIcon:     false,
+		IgnoredApps:      []string{},
+		IgnoreConcealed:  true,
+		IgnoreTransient:  true,
+		CaptureImages:    true,
+		PopupWidth:       420,
+		PopupHeight:      520,
+		PopupPlacement:   PlacementCursor,
+		PreviewOnHover:   true,
+		ImagePreviewSize: PreviewComfortable,
+		LayoutVersion:    layoutFlyout,
 	}
 }
 
@@ -154,6 +169,11 @@ func (s *Settings) normalise() {
 	case PlacementCursor, PlacementMenuBar:
 	default:
 		s.PopupPlacement = d.PopupPlacement
+	}
+	switch s.ImagePreviewSize {
+	case PreviewCompact, PreviewComfortable, PreviewLarge:
+	default:
+		s.ImagePreviewSize = d.ImagePreviewSize
 	}
 	if s.IgnoredApps == nil {
 		s.IgnoredApps = []string{}

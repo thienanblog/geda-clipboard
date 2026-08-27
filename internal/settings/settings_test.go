@@ -125,6 +125,24 @@ func TestNormalisePopupPlacement(t *testing.T) {
 	}
 }
 
+func TestNormaliseImagePreviewSize(t *testing.T) {
+	for _, size := range []string{PreviewCompact, PreviewComfortable, PreviewLarge} {
+		got := Defaults()
+		got.ImagePreviewSize = size
+		got.normalise()
+		if got.ImagePreviewSize != size {
+			t.Errorf("ImagePreviewSize = %q, want %q", got.ImagePreviewSize, size)
+		}
+	}
+
+	got := Defaults()
+	got.ImagePreviewSize = "enormous"
+	got.normalise()
+	if got.ImagePreviewSize != PreviewComfortable {
+		t.Errorf("unknown ImagePreviewSize = %q, want %q", got.ImagePreviewSize, PreviewComfortable)
+	}
+}
+
 // writeSettingsFile points the app data directory at a temporary HOME and puts
 // the given JSON there as the stored configuration.
 func writeSettingsFile(t *testing.T, body string) {
@@ -140,6 +158,21 @@ func writeSettingsFile(t *testing.T, body string) {
 	}
 	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(body), 0o600); err != nil {
 		t.Fatalf("write settings: %v", err)
+	}
+}
+
+func TestLegacySettingsUseSafePinnedClearDefault(t *testing.T) {
+	writeSettingsFile(t, `{"popupWidth":420,"popupHeight":520,"layoutVersion":1}`)
+	m, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := m.Get()
+	if got.ClearPinnedOnHistoryClear {
+		t.Error("legacy settings opted pinned entries into history clearing")
+	}
+	if got.ImagePreviewSize != PreviewComfortable {
+		t.Errorf("legacy preview size = %q, want %q", got.ImagePreviewSize, PreviewComfortable)
 	}
 }
 
