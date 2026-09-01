@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func newStore(t *testing.T, maxItems int) *Store {
@@ -355,6 +356,98 @@ func TestSearch(t *testing.T) {
 	}
 	if got := s.List("nope"); len(got) != 0 {
 		t.Errorf("unmatched search returned %d, want 0", len(got))
+	}
+}
+
+func TestListPreviewBoundsPayloadWithoutWeakeningSearch(t *testing.T) {
+	s := newStore(t, 10)
+	longText := strings.Repeat("a", 400) + " searchable-middle " + strings.Repeat("z", 200)
+	textItem, _ := addText(t, s, longText, time.Now())
+
+	const thumb = "data:image/png;base64,THUMB"
+	imageItem, _, err := s.Add(Capture{
+		Kind: KindImage, Image: pngBytes(t, 2, 2, color.Black), Thumb: thumb,
+		SourceApp: "ImageApp", SourceIconKey: "image.app", SourceIcon: "data:image/png;base64,ICON",
+		At: time.Now().Add(time.Second),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := s.ListPreview("searchable-middle")
+	if len(got) != 1 || got[0].ID != textItem.ID {
+		t.Fatalf("ListPreview search = %+v, want the long text entry", got)
+	}
+	if utf8.RuneCountInString(got[0].Text) != listPreviewRunes {
+		t.Fatalf("preview length = %d, want %d runes", utf8.RuneCountInString(got[0].Text), listPreviewRunes)
+	}
+	if !strings.HasPrefix(got[0].Text, strings.Repeat("a", 200)+"…") || !strings.HasSuffix(got[0].Text, strings.Repeat("z", 119)) {
+		t.Fatalf("preview did not preserve both ends: %q", got[0].Text)
+	}
+	if got[0].Hash != "" || got[0].SourceIcon != "" {
+		t.Fatalf("text preview leaked non-list payload: %+v", got[0])
+	}
+
+	all := s.ListPreview("")
+	var imagePreview *Item
+	for _, item := range all {
+		if item.ID == imageItem.ID {
+			imagePreview = item
+			break
+		}
+	}
+	if imagePreview == nil {
+		t.Fatal("image preview missing")
+	}
+	if imagePreview.Thumb != "" || imagePreview.SourceIcon != "" || imagePreview.ImageFile != "" || imagePreview.Hash != "" {
+		t.Fatalf("image preview contains lazy or internal payload: %+v", imagePreview)
+	}
+
+	fullImage, ok := s.Get(imageItem.ID)
+	if !ok || fullImage.Thumb != thumb || fullImage.SourceIcon == "" || fullImage.ImageFile == "" || fullImage.Hash == "" {
+		t.Fatalf("ListPreview changed the stored item: %+v", fullImage)
+	}
+}
+
+func TestListPreviewKeepsImageRichPayloadBounded(t *testing.T) {
+	s := newStore(t, 200)
+	base := time.Now()
+	icon := "data:image/png;base64," + strings.Repeat("I", 4_000)
+	thumbPrefix := "data:image/png;base64," + strings.Repeat("T", 40_000)
+
+	for i := 0; i < 63; i++ {
+		if _, _, err := s.Add(Capture{
+			Kind:      KindImage,
+			Image:     pngBytes(t, 2, 2, color.RGBA{R: uint8(i), G: uint8(i * 3), B: uint8(i * 7), A: 255}),
+			Thumb:     thumbPrefix + fmt.Sprint(i),
+			SourceApp: "ImageApp", SourceIconKey: "image.app", SourceIcon: icon,
+			At: base.Add(time.Duration(i) * time.Second),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 137; i++ {
+		if _, _, err := s.Add(Capture{
+			Kind:      KindText,
+			Text:      fmt.Sprintf("entry-%03d %s", i, strings.Repeat("payload ", 250)),
+			SourceApp: "TextApp", SourceIconKey: "text.app", SourceIcon: icon,
+			At: base.Add(time.Duration(63+i) * time.Second),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	fullJSON, err := json.Marshal(s.List(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	previewJSON, err := json.Marshal(s.ListPreview(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("full list payload = %d bytes; preview payload = %d bytes", len(fullJSON), len(previewJSON))
+	if len(previewJSON)*10 >= len(fullJSON) {
+		t.Fatalf("preview payload = %d bytes, want under 10%% of full payload %d", len(previewJSON), len(fullJSON))
 	}
 }
 

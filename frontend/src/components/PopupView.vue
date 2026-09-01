@@ -20,9 +20,9 @@ const query = ref('')
 const selected = ref(0)
 const searchEl = ref<HTMLInputElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
-const rowEls = ref<HTMLElement[]>([])
 const gutterEl = ref<HTMLElement | null>(null)
 const flyoutEl = ref<HTMLElement | null>(null)
+const rowEls = new Map<number, HTMLElement>()
 
 /** Index of the row under the cursor, or -1 when the mouse is away. */
 const hovered = ref(-1)
@@ -37,6 +37,8 @@ const primed = ref(true)
 const previewOnHover = ref(true)
 const imagePreviewSize = ref<'compact' | 'comfortable' | 'large'>('comfortable')
 const clearPinnedOnHistoryClear = ref(false)
+const scrollTop = ref(0)
+const viewportHeight = ref(0)
 
 /** Live width of the list, kept by a ResizeObserver: the popup size is
  *  user-configurable, so the row text budget depends on it. */
@@ -57,7 +59,8 @@ const empty = computed(() => items.value.length === 0)
 /** Hovering wins; with the mouse away the card follows keyboard selection. */
 const detailIndex = computed(() => (hovered.value >= 0 ? hovered.value : selected.value))
 
-const detailItem = computed<store.Item | null>(() => items.value[detailIndex.value] ?? null)
+const detailSummary = computed<store.Item | null>(() => items.value[detailIndex.value] ?? null)
+const loadedDetail = ref<store.Item | null>(null)
 
 /** The card is a hover affordance: it stays out of the way until the user
  *  points at a row, or starts walking the list with the arrow keys. */
@@ -65,9 +68,117 @@ const showDetail = computed(
   () =>
     previewOnHover.value &&
     gutter.value > 0 &&
-    detailItem.value !== null &&
+    detailSummary.value !== null &&
     (hovered.value >= 0 || keyboardNav.value),
 )
+
+const detailItem = computed(() => loadedDetail.value ?? detailSummary.value)
+
+/** The WebView only needs thumbnails for visible image rows and full text for
+ *  the one detail card being inspected. A bounded image LRU prevents a long
+ *  scroll session from rebuilding the old all-thumbnail memory footprint;
+ *  text is deliberately not cached because one clipboard entry can be huge. */
+const itemCacheLimit = 32
+const itemCache = new Map<string, store.Item>()
+const itemRequests = new Map<string, Promise<store.Item>>()
+const itemCacheVersion = ref(0)
+let cacheGeneration = 0
+
+function clearItemCache(): void {
+  cacheGeneration++
+  itemCache.clear()
+  itemRequests.clear()
+  itemCacheVersion.value++
+  loadedDetail.value = null
+}
+
+function cachedItem(id: string): store.Item | undefined {
+  // Map is intentionally non-reactive; this scalar invalidates only consumers
+  // of cached display data instead of proxying large base64 thumbnail strings.
+  void itemCacheVersion.value
+  return itemCache.get(id)
+}
+
+async function loadItem(id: string): Promise<store.Item> {
+  const cached = itemCache.get(id)
+  if (cached) {
+    itemCache.delete(id)
+    itemCache.set(id, cached)
+    return cached
+  }
+  const pending = itemRequests.get(id)
+  if (pending) return pending
+
+  const generation = cacheGeneration
+  const request = App.GetItem(id).then((item) => {
+    if (generation !== cacheGeneration) return item
+    if (item.kind === 'image') {
+      itemCache.set(id, item)
+      while (itemCache.size > itemCacheLimit) {
+        const oldest = itemCache.keys().next().value as string | undefined
+        if (!oldest) break
+        itemCache.delete(oldest)
+      }
+      itemCacheVersion.value++
+    }
+    return item
+  })
+  itemRequests.set(id, request)
+  const removePending = () => {
+    if (itemRequests.get(id) === request) itemRequests.delete(id)
+  }
+  void request.then(removePending, removePending)
+  return request
+}
+
+function thumbnail(item: store.Item): string {
+  return cachedItem(item.id)?.thumb ?? ''
+}
+
+interface VirtualRow {
+  item: store.Item
+  index: number
+  top: number
+  height: number
+}
+
+// These values mirror --row-h and the image thumbnail heights plus the row's
+// 3px vertical padding on each side. Keeping the geometry explicit makes
+// keyboard scrolling deterministic even when the target row is not mounted.
+function rowHeight(item: store.Item): number {
+  if (item.kind !== 'image') return 30
+  if (imagePreviewSize.value === 'compact') return 50
+  if (imagePreviewSize.value === 'large') return 118
+  return 80
+}
+
+const rowLayout = computed(() => {
+  const offsets: number[] = []
+  const heights: number[] = []
+  let total = 0
+  for (const item of items.value) {
+    offsets.push(total)
+    const height = rowHeight(item)
+    heights.push(height)
+    total += height
+  }
+  return { offsets, heights, total }
+})
+
+const visibleRows = computed<VirtualRow[]>(() => {
+  const { offsets, heights } = rowLayout.value
+  const overscan = 240
+  const firstPixel = Math.max(0, scrollTop.value - overscan)
+  const lastPixel = scrollTop.value + viewportHeight.value + overscan
+  let start = 0
+  while (start < items.value.length && offsets[start] + heights[start] < firstPixel) start++
+  let end = start
+  while (end < items.value.length && offsets[end] < lastPixel) end++
+  return items.value.slice(start, end).map((item, relativeIndex) => {
+    const index = start + relativeIndex
+    return { item, index, top: offsets[index], height: heights[index] }
+  })
+})
 
 /** How many characters of a row's label actually fit. The reserved slice
  *  covers the row padding and the shared trailing slot for the pin or ⌘n
@@ -105,10 +216,16 @@ function rowDescription(item: store.Item): string {
   return parts.join(', ')
 }
 
+let listRequest = 0
+
 async function reload(): Promise<void> {
+  const request = ++listRequest
   try {
-    items.value = await App.List(query.value)
+    const nextItems = await App.List(query.value)
+    if (request !== listRequest) return
+    items.value = nextItems
   } catch (err) {
+    if (request !== listRequest) return
     items.value = []
     showError(String(err))
     return
@@ -116,10 +233,6 @@ async function reload(): Promise<void> {
   if (selected.value >= items.value.length) {
     selected.value = Math.max(0, items.value.length - 1)
   }
-  // Rows are only ever assigned into this array, so a shorter list would leave
-  // detached elements behind -- and the preview card, which places itself off
-  // the row's position, would then read a rect of zeroes.
-  rowEls.value.length = items.value.length
 }
 
 async function loadSettings(): Promise<void> {
@@ -166,13 +279,34 @@ function resetForOpen(): void {
   hovered.value = -1
   keyboardNav.value = false
   primed.value = true
+  nextTick(() => {
+    if (listEl.value) listEl.value.scrollTop = 0
+    scrollTop.value = 0
+  })
 }
 
 /** Keeps the selected row inside the scroll viewport during keyboard nav. */
 function scrollSelectedIntoView(): void {
-  nextTick(() => {
-    rowEls.value[selected.value]?.scrollIntoView({ block: 'nearest' })
-  })
+  const list = listEl.value
+  const top = rowLayout.value.offsets[selected.value]
+  const height = rowLayout.value.heights[selected.value]
+  if (!list || top === undefined || height === undefined) return
+  const bottom = top + height
+  if (top < list.scrollTop) {
+    list.scrollTop = top
+  } else if (bottom > list.scrollTop + list.clientHeight) {
+    list.scrollTop = bottom - list.clientHeight
+  }
+  scrollTop.value = list.scrollTop
+  nextTick(positionFlyout)
+}
+
+function setRowElement(index: number, element: HTMLElement | null): void {
+  if (element) {
+    rowEls.set(index, element)
+  } else {
+    rowEls.delete(index)
+  }
 }
 
 /** Lines the preview card up with the row it describes, then keeps it inside
@@ -182,7 +316,7 @@ function scrollSelectedIntoView(): void {
  *  Runs after the DOM settles, since the card's height depends on the entry. */
 function positionFlyout(): void {
   nextTick(() => {
-    const row = rowEls.value[detailIndex.value]
+    const row = rowEls.get(detailIndex.value)
     const card = flyoutEl.value
     const gutterBox = gutterEl.value
     if (!row || !card || !gutterBox) return
@@ -204,6 +338,47 @@ watch(flyoutEl, (card) => {
   cardObserver = new ResizeObserver(() => positionFlyout())
   cardObserver.observe(card)
 })
+
+let detailTimer: number | undefined
+let detailRequest = 0
+
+watch([detailSummary, showDetail], ([summary, visible]) => {
+  window.clearTimeout(detailTimer)
+  const request = ++detailRequest
+  if (!summary || !visible) {
+    loadedDetail.value = null
+    return
+  }
+
+  loadedDetail.value = cachedItem(summary.id) ?? summary
+  // A short dwell avoids bridge calls for rows merely crossed on the way to a
+  // target. Visible image rows are already loading immediately below.
+  detailTimer = window.setTimeout(() => {
+    void loadItem(summary.id)
+      .then((item) => {
+        if (request === detailRequest && detailSummary.value?.id === item.id) {
+          loadedDetail.value = item
+        }
+      })
+      .catch(() => {
+        // A concurrent delete can invalidate the row before its detail arrives.
+      })
+  }, 60)
+})
+
+watch(
+  visibleRows,
+  (rows) => {
+    for (const row of rows) {
+      if (row.item.kind === 'image') {
+        void loadItem(row.item.id).catch(() => {
+          // Missing entries disappear on the next history refresh.
+        })
+      }
+    }
+  },
+  { immediate: true },
+)
 
 function move(delta: number): void {
   if (empty.value) return
@@ -278,10 +453,6 @@ function onRowEnter(index: number): void {
   selected.value = index
   keyboardNav.value = false
   if (previewOnHover.value) hovered.value = index
-}
-
-function onRowLeave(index: number): void {
-  if (hovered.value === index) hovered.value = -1
 }
 
 function onListLeave(): void {
@@ -421,6 +592,8 @@ watch(query, () => {
   hovered.value = -1
   keyboardNav.value = false
   primed.value = true
+  if (listEl.value) listEl.value.scrollTop = 0
+  scrollTop.value = 0
   void reload()
 })
 
@@ -436,6 +609,11 @@ let sizeObserver: ResizeObserver | undefined
 
 function measure(): void {
   listWidth.value = listEl.value?.clientWidth ?? 0
+  viewportHeight.value = listEl.value?.clientHeight ?? 0
+}
+
+function onScroll(): void {
+  scrollTop.value = listEl.value?.scrollTop ?? 0
 }
 
 onMounted(() => {
@@ -455,6 +633,7 @@ onMounted(() => {
 
   disposers.push(
     EventsOn('history:changed', () => {
+      clearItemCache()
       void reload()
     }),
   )
@@ -477,6 +656,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('focus', focusSearch)
   window.clearTimeout(errorTimer)
+  window.clearTimeout(detailTimer)
   sizeObserver?.disconnect()
   cardObserver?.disconnect()
   disposers.forEach((dispose) => dispose())
@@ -546,6 +726,7 @@ onUnmounted(() => {
         class="list scroll"
         role="list"
         aria-label="Clipboard history"
+        @scroll="onScroll"
         @mouseleave="onListLeave"
       >
         <p v-if="empty" class="empty" role="status">
@@ -553,51 +734,67 @@ onUnmounted(() => {
         </p>
 
         <div
-          v-for="(item, index) in items"
-          :key="item.id"
-          :ref="(el) => { if (el) rowEls[index] = el as HTMLElement }"
-          class="row-shell"
-          :class="{ 'row-selected': index === selected }"
-          role="listitem"
-          @mouseenter="onRowEnter(index)"
-          @mouseleave="onRowLeave(index)"
+          v-else
+          class="virtual-list"
+          :style="{ height: rowLayout.total + 'px' }"
         >
-          <button
-            :id="`geda-row-${index}`"
-            class="row-main"
-            type="button"
-            :aria-current="index === selected ? 'true' : undefined"
-            :aria-label="rowDescription(item)"
-            tabindex="-1"
-            @mousedown="keepSearchFocus"
-            @click="activate(index)"
+          <div
+            v-for="row in visibleRows"
+            :key="row.item.id"
+            :ref="(el) => setRowElement(row.index, el as HTMLElement | null)"
+            class="row-shell"
+            :class="{ 'row-selected': row.index === selected }"
+            :style="{ height: row.height + 'px', transform: `translateY(${row.top}px)` }"
+            role="listitem"
+            :aria-posinset="row.index + 1"
+            :aria-setsize="items.length"
+            @mouseenter="onRowEnter(row.index)"
           >
-            <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="thumb" alt="" />
-            <span v-else class="label">{{ label(item) }}</span>
-          </button>
-
-          <!-- The accelerator and pin occupy one fixed slot so revealing the
-               mouse action never shifts or shortens the row content. A pinned
-               entry keeps its state visible at rest; an unpinned entry shows
-               its numeric accelerator until the pointer reaches the row. -->
-          <div class="row-trailing" :class="{ pinned: item.pinned }">
-            <span class="row-accel accel" aria-hidden="true">{{ accelerator(index) }}</span>
             <button
-              class="pin-action"
+              :id="`geda-row-${row.index}`"
+              class="row-main"
               type="button"
-              :title="item.pinned ? 'Unpin entry' : 'Pin entry'"
-              :aria-label="`${item.pinned ? 'Unpin' : 'Pin'} ${rowDescription(item)}`"
+              :aria-current="row.index === selected ? 'true' : undefined"
+              :aria-label="rowDescription(row.item)"
+              tabindex="-1"
               @mousedown="keepSearchFocus"
-              @keydown.enter.stop.prevent="togglePin(index)"
-              @click.stop="togglePin(index)"
+              @click="activate(row.index)"
             >
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  d="M9.5 1.5 14.5 6.5l-1.9.5-3 3 .4 3.3-1.3.5-2.2-3.4-3.6 3.6-.7-.7 3.6-3.6L2.4 7.5l.5-1.3 3.3.4 3-3 .3-2.1Z"
-                  fill="currentColor"
-                />
-              </svg>
+              <img
+                v-if="row.item.kind === 'image' && thumbnail(row.item)"
+                :src="thumbnail(row.item)"
+                class="thumb"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+              <span v-else-if="row.item.kind === 'image'" class="image-placeholder">Image</span>
+              <span v-else class="label">{{ label(row.item) }}</span>
             </button>
+
+            <!-- The accelerator and pin occupy one fixed slot so revealing the
+                 mouse action never shifts or shortens the row content. A pinned
+                 entry keeps its state visible at rest; an unpinned entry shows
+                 its numeric accelerator until the pointer reaches the row. -->
+            <div class="row-trailing" :class="{ pinned: row.item.pinned }">
+              <span class="row-accel accel" aria-hidden="true">{{ accelerator(row.index) }}</span>
+              <button
+                class="pin-action"
+                type="button"
+                :title="row.item.pinned ? 'Unpin entry' : 'Pin entry'"
+                :aria-label="`${row.item.pinned ? 'Unpin' : 'Pin'} ${rowDescription(row.item)}`"
+                @mousedown="keepSearchFocus"
+                @keydown.enter.stop.prevent="togglePin(row.index)"
+                @click.stop="togglePin(row.index)"
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    d="M9.5 1.5 14.5 6.5l-1.9.5-3 3 .4 3.3-1.3.5-2.2-3.4-3.6 3.6-.7-.7 3.6-3.6L2.4 7.5l.5-1.3 3.3.4 3-3 .3-2.1Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -745,13 +942,21 @@ onUnmounted(() => {
   font-size: 12.5px;
 }
 
+.virtual-list {
+  position: relative;
+  width: 100%;
+}
+
 .row-shell {
+  position: absolute;
+  inset: 0 0 auto;
   display: flex;
   align-items: center;
   width: 100%;
   min-height: var(--row-h);
   border-radius: var(--radius-row);
   background: transparent;
+  contain: layout paint style;
 }
 
 .row-main {
@@ -760,6 +965,7 @@ onUnmounted(() => {
   min-width: 0;
   align-items: center;
   gap: 8px;
+  height: 100%;
   min-height: var(--row-h);
   padding: 3px 5px 3px 8px;
   border: 0;
@@ -853,6 +1059,11 @@ onUnmounted(() => {
   border-radius: 3px;
   object-fit: contain;
   object-position: left center;
+}
+
+.image-placeholder {
+  color: var(--fg-faint);
+  font-size: 12px;
 }
 
 .footer {
