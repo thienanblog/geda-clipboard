@@ -6,6 +6,7 @@ let platform: Platform = 'darwin'
 
 export function setPlatform(value: Platform): void {
   platform = value
+  document.documentElement.dataset.platform = value
 }
 
 export function isMac(): boolean {

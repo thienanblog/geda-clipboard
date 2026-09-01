@@ -683,11 +683,29 @@ func (a *App) List(query string) []*store.Item {
 	if a.store == nil {
 		return []*store.Item{}
 	}
-	items := a.store.List(query)
+	items := a.store.ListPreview(query)
 	if items == nil {
 		return []*store.Item{}
 	}
 	return items
+}
+
+// GetItem returns bounded display data for one entry. The popup list uses
+// lightweight summaries and calls this only for visible or inspected rows, so
+// text payloads, thumbnails and source icons do not inflate list refreshes or
+// block the WebView when a large text entry is hovered.
+func (a *App) GetItem(id string) (*store.Item, error) {
+	if a.store == nil {
+		return nil, fmt.Errorf("history unavailable")
+	}
+	item, ok := a.store.GetPreview(id)
+	if !ok {
+		return nil, fmt.Errorf("history entry not found")
+	}
+	// These fields are storage implementation details, not display data.
+	item.ImageFile = ""
+	item.Hash = ""
+	return item, nil
 }
 
 // ListPinned returns the pinned entries in their effective display order.

@@ -46,6 +46,10 @@ export function FullImage(arg1) {
   return window['go']['main']['App']['FullImage'](arg1);
 }
 
+export function GetItem(arg1) {
+  return window['go']['main']['App']['GetItem'](arg1);
+}
+
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }

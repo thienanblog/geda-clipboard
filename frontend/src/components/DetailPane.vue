@@ -23,10 +23,18 @@ const dimensions = computed(() =>
 
 const stats = computed(() => {
   if (!props.item) return ''
-  return props.item.kind === 'image'
-    ? [dimensions.value, formatBytes(props.item.bytes)].filter(Boolean).join(' · ')
-    : textStats(props.item.text)
+  if (props.item.kind === 'image') {
+    return [dimensions.value, formatBytes(props.item.bytes)].filter(Boolean).join(' · ')
+  }
+  const chars = props.item.textChars ?? 0
+  const lines = props.item.textLines ?? 0
+  return chars > 0 && lines > 0 ? formatTextStats(chars, lines) : textStats(props.item.text)
 })
+
+function formatTextStats(chars: number, lines: number): string {
+  const charLabel = `${chars.toLocaleString()} character${chars === 1 ? '' : 's'}`
+  return lines > 1 ? `${charLabel} · ${lines.toLocaleString()} lines` : charLabel
+}
 
 const pinHint = computed(() =>
   `Press ${combo(sym.alt, 'P')} to ${props.item?.pinned ? 'unpin' : 'pin'}.`,

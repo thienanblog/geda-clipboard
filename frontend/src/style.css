@@ -130,6 +130,14 @@ body {
   -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
+/* Wails already places an NSVisualEffectView behind the panel on macOS. A
+   second CSS backdrop blur forces WebKit to re-composite that native material
+   whenever a row or preview changes; keep the CSS fallback for WebView2. */
+:root[data-platform='darwin'] .panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 input,
 select,
 button,

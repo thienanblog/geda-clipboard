@@ -179,6 +179,8 @@ export namespace store {
 	    id: string;
 	    kind: string;
 	    text?: string;
+	    textChars?: number;
+	    textLines?: number;
 	    imageFile?: string;
 	    thumb?: string;
 	    imageW?: number;
@@ -205,6 +207,8 @@ export namespace store {
 	        this.id = source["id"];
 	        this.kind = source["kind"];
 	        this.text = source["text"];
+	        this.textChars = source["textChars"];
+	        this.textLines = source["textLines"];
 	        this.imageFile = source["imageFile"];
 	        this.thumb = source["thumb"];
 	        this.imageW = source["imageW"];

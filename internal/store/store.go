@@ -16,9 +16,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"geda-clipboard/internal/appdir"
 )
+
+const textPreviewRunes = 320
 
 // Capture is an incoming clipboard event to be recorded.
 type Capture struct {
@@ -376,6 +379,25 @@ func (s *Store) List(query string) []*Item {
 	return s.listLocked(query, false)
 }
 
+// ListPreview returns the same ordered, searchable history as List, but keeps
+// large and display-only payloads out of the WebView bootstrap response. The
+// popup fetches the complete entry only for rows that become visible or are
+// inspected, while search still runs against the full text held by the store.
+func (s *Store) ListPreview(query string) []*Item {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := s.listLocked(query, false)
+	for _, it := range items {
+		it.Text = boundedTextPreview(it.Text)
+		it.Thumb = ""
+		it.SourceIcon = ""
+		it.ImageFile = ""
+		it.Hash = ""
+	}
+	return items
+}
+
 // ListPinned returns pinned entries in the same order List presents them.
 func (s *Store) ListPinned() []*Item {
 	s.mu.RLock()
@@ -426,6 +448,56 @@ func matches(it *Item, needle string) bool {
 		return true
 	}
 	return false
+}
+
+// boundedTextPreview preserves both ends of long text because paths, URLs and
+// generated output are often distinguished by their suffix. It examines only
+// the bounded prefix and suffix rather than converting an arbitrarily large
+// clipboard payload into a rune slice on every popup open.
+func boundedTextPreview(text string) string {
+	const ellipsis = "…"
+	const headRunes = 200
+	const tailRunes = textPreviewRunes - headRunes - 1
+
+	runes := 0
+	headEnd := len(text)
+	truncated := false
+	for byteIndex := range text {
+		if runes == headRunes {
+			headEnd = byteIndex
+		}
+		if runes == textPreviewRunes {
+			truncated = true
+			break
+		}
+		runes++
+	}
+	if !truncated {
+		return text
+	}
+
+	tailStart := len(text)
+	for i := 0; i < tailRunes && tailStart > 0; i++ {
+		_, size := utf8.DecodeLastRuneInString(text[:tailStart])
+		tailStart -= size
+	}
+	return text[:headEnd] + ellipsis + text[tailStart:]
+}
+
+// GetPreview returns the bounded payload needed by the detail pane. Text
+// statistics are derived before truncation so the WebView never has to receive
+// or scan an arbitrarily large clipboard string merely because a row is hovered.
+func (s *Store) GetPreview(id string) (*Item, bool) {
+	it, ok := s.Get(id)
+	if !ok {
+		return nil, false
+	}
+	if it.Kind == KindText {
+		it.TextChars = utf8.RuneCountInString(it.Text)
+		it.TextLines = strings.Count(it.Text, "\n") + 1
+		it.Text = boundedTextPreview(it.Text)
+	}
+	return it, true
 }
 
 // Get returns a copy of the entry with the given ID.
