@@ -9,6 +9,20 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-09-01
+
+### Fixed
+
+- **Large clipboard histories no longer make the popup stall when it opens,
+  scrolls or previews an entry.** The list now sends bounded summaries to the
+  WebView, renders only visible rows, hydrates small on-demand details through
+  a bounded cache and avoids a redundant backdrop blur on macOS. Full text
+  stays in the native store for copying, while previews retain accurate length
+  and line counts without transferring the entire payload.
+- **Hover previews no longer remain attached to a stale row.** Leaving a row or
+  scrolling the virtual list dismisses its card instead of showing that entry
+  beside unrelated content.
+
 ## [0.12.0] - 2026-08-27
 
 ### Added
@@ -408,7 +422,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.1...HEAD
+[0.12.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.0...v0.10.1

@@ -80,7 +80,7 @@ FEATURES
 • Copying the same thing again bumps the entry you already have and raises its counter, instead of filling the list with duplicates
 • One combined day, week, month or year chart compares all copies, text, images and repeated copies, with independently hideable series and bounded counters rather than per-copy events
 • Every entry records the app it came from, with its icon, and when you first and last copied it
-• Point at any row for a card with the full text, its length, and its history
+• Point at any row for a card with a text preview, its full length, and its history
 • Pin the entries you use every day, arrange their priority, and keep them safe when clearing routine history
 • Keyboard throughout: ⌘1 to ⌘9 to pick an entry, ⌥P to pin, ⌥⌫ to delete, Esc to dismiss
 • A global shortcut you can rebind to whatever is free on your Mac
@@ -118,11 +118,11 @@ For the first submission this field is not shown. From the second version on,
 paste that release's section from `CHANGELOG.md`, rewritten for users rather
 than for the repository.
 
-For version 0.12.0:
+For version 0.12.1:
 
 ```
-• A new Welcome window shows where Geda lives and how to open your clipboard history
-• Opening Geda again while it is already running now brings the clipboard popup forward
+• Large clipboard histories now open, scroll and preview smoothly while keeping full content available for copying
+• Hover previews now dismiss correctly when leaving a row or scrolling the history
 ```
 
 ## 8. App Privacy
