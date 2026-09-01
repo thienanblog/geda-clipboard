@@ -74,10 +74,10 @@ const showDetail = computed(
 
 const detailItem = computed(() => loadedDetail.value ?? detailSummary.value)
 
-/** The WebView only needs thumbnails for visible image rows and full text for
- *  the one detail card being inspected. A bounded image LRU prevents a long
- *  scroll session from rebuilding the old all-thumbnail memory footprint;
- *  text is deliberately not cached because one clipboard entry can be huge. */
+/** The WebView only needs thumbnails for visible image rows and a bounded text
+ *  preview for the one detail card being inspected. A small LRU prevents a long
+ *  scroll session from rebuilding the old all-thumbnail memory footprint while
+ *  making repeated hovers reuse already-bounded detail data. */
 const itemCacheLimit = 32
 const itemCache = new Map<string, store.Item>()
 const itemRequests = new Map<string, Promise<store.Item>>()
@@ -112,15 +112,13 @@ async function loadItem(id: string): Promise<store.Item> {
   const generation = cacheGeneration
   const request = App.GetItem(id).then((item) => {
     if (generation !== cacheGeneration) return item
-    if (item.kind === 'image') {
-      itemCache.set(id, item)
-      while (itemCache.size > itemCacheLimit) {
-        const oldest = itemCache.keys().next().value as string | undefined
-        if (!oldest) break
-        itemCache.delete(oldest)
-      }
-      itemCacheVersion.value++
+    itemCache.set(id, item)
+    while (itemCache.size > itemCacheLimit) {
+      const oldest = itemCache.keys().next().value as string | undefined
+      if (!oldest) break
+      itemCache.delete(oldest)
     }
+    itemCacheVersion.value++
     return item
   })
   itemRequests.set(id, request)
@@ -455,6 +453,12 @@ function onRowEnter(index: number): void {
   if (previewOnHover.value) hovered.value = index
 }
 
+function onRowLeave(index: number, event: MouseEvent): void {
+  const next = event.relatedTarget
+  if (next instanceof Element && next.closest('.row-shell')) return
+  if (hovered.value === index) hovered.value = -1
+}
+
 function onListLeave(): void {
   hovered.value = -1
 }
@@ -614,6 +618,10 @@ function measure(): void {
 
 function onScroll(): void {
   scrollTop.value = listEl.value?.scrollTop ?? 0
+  // Scrolling can move a virtual row out from under a stationary pointer
+  // without producing a reliable row leave event. Do not leave its detail card
+  // attached to the unrelated row that replaced it under the cursor.
+  hovered.value = -1
 }
 
 onMounted(() => {
@@ -749,6 +757,7 @@ onUnmounted(() => {
             :aria-posinset="row.index + 1"
             :aria-setsize="items.length"
             @mouseenter="onRowEnter(row.index)"
+            @mouseleave="onRowLeave(row.index, $event)"
           >
             <button
               :id="`geda-row-${row.index}`"

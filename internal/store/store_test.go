@@ -378,8 +378,8 @@ func TestListPreviewBoundsPayloadWithoutWeakeningSearch(t *testing.T) {
 	if len(got) != 1 || got[0].ID != textItem.ID {
 		t.Fatalf("ListPreview search = %+v, want the long text entry", got)
 	}
-	if utf8.RuneCountInString(got[0].Text) != listPreviewRunes {
-		t.Fatalf("preview length = %d, want %d runes", utf8.RuneCountInString(got[0].Text), listPreviewRunes)
+	if utf8.RuneCountInString(got[0].Text) != textPreviewRunes {
+		t.Fatalf("preview length = %d, want %d runes", utf8.RuneCountInString(got[0].Text), textPreviewRunes)
 	}
 	if !strings.HasPrefix(got[0].Text, strings.Repeat("a", 200)+"…") || !strings.HasSuffix(got[0].Text, strings.Repeat("z", 119)) {
 		t.Fatalf("preview did not preserve both ends: %q", got[0].Text)
@@ -406,6 +406,31 @@ func TestListPreviewBoundsPayloadWithoutWeakeningSearch(t *testing.T) {
 	fullImage, ok := s.Get(imageItem.ID)
 	if !ok || fullImage.Thumb != thumb || fullImage.SourceIcon == "" || fullImage.ImageFile == "" || fullImage.Hash == "" {
 		t.Fatalf("ListPreview changed the stored item: %+v", fullImage)
+	}
+}
+
+func TestGetPreviewBoundsTextAndKeepsFullStatistics(t *testing.T) {
+	s := newStore(t, 10)
+	fullText := strings.Repeat("á", 250) + "\n" + strings.Repeat("🙂", 180)
+	item, _ := addText(t, s, fullText, time.Now())
+
+	preview, ok := s.GetPreview(item.ID)
+	if !ok {
+		t.Fatal("GetPreview did not find the text entry")
+	}
+	if got := utf8.RuneCountInString(preview.Text); got != textPreviewRunes {
+		t.Fatalf("preview text length = %d, want %d", got, textPreviewRunes)
+	}
+	if preview.TextChars != utf8.RuneCountInString(fullText) || preview.TextLines != 2 {
+		t.Fatalf("preview statistics = %d chars, %d lines", preview.TextChars, preview.TextLines)
+	}
+
+	stored, ok := s.Get(item.ID)
+	if !ok || stored.Text != fullText {
+		t.Fatalf("GetPreview changed stored text: %+v", stored)
+	}
+	if stored.TextChars != 0 || stored.TextLines != 0 {
+		t.Fatalf("GetPreview persisted derived statistics: %+v", stored)
 	}
 }
 

@@ -21,7 +21,7 @@ import (
 	"geda-clipboard/internal/appdir"
 )
 
-const listPreviewRunes = 320
+const textPreviewRunes = 320
 
 // Capture is an incoming clipboard event to be recorded.
 type Capture struct {
@@ -389,7 +389,7 @@ func (s *Store) ListPreview(query string) []*Item {
 
 	items := s.listLocked(query, false)
 	for _, it := range items {
-		it.Text = boundedListPreview(it.Text)
+		it.Text = boundedTextPreview(it.Text)
 		it.Thumb = ""
 		it.SourceIcon = ""
 		it.ImageFile = ""
@@ -450,14 +450,14 @@ func matches(it *Item, needle string) bool {
 	return false
 }
 
-// boundedListPreview preserves both ends of long text because paths, URLs and
+// boundedTextPreview preserves both ends of long text because paths, URLs and
 // generated output are often distinguished by their suffix. It examines only
 // the bounded prefix and suffix rather than converting an arbitrarily large
 // clipboard payload into a rune slice on every popup open.
-func boundedListPreview(text string) string {
+func boundedTextPreview(text string) string {
 	const ellipsis = "…"
 	const headRunes = 200
-	const tailRunes = listPreviewRunes - headRunes - 1
+	const tailRunes = textPreviewRunes - headRunes - 1
 
 	runes := 0
 	headEnd := len(text)
@@ -466,7 +466,7 @@ func boundedListPreview(text string) string {
 		if runes == headRunes {
 			headEnd = byteIndex
 		}
-		if runes == listPreviewRunes {
+		if runes == textPreviewRunes {
 			truncated = true
 			break
 		}
@@ -482,6 +482,22 @@ func boundedListPreview(text string) string {
 		tailStart -= size
 	}
 	return text[:headEnd] + ellipsis + text[tailStart:]
+}
+
+// GetPreview returns the bounded payload needed by the detail pane. Text
+// statistics are derived before truncation so the WebView never has to receive
+// or scan an arbitrarily large clipboard string merely because a row is hovered.
+func (s *Store) GetPreview(id string) (*Item, bool) {
+	it, ok := s.Get(id)
+	if !ok {
+		return nil, false
+	}
+	if it.Kind == KindText {
+		it.TextChars = utf8.RuneCountInString(it.Text)
+		it.TextLines = strings.Count(it.Text, "\n") + 1
+		it.Text = boundedTextPreview(it.Text)
+	}
+	return it, true
 }
 
 // Get returns a copy of the entry with the given ID.

@@ -23,6 +23,11 @@ type Item struct {
 
 	// Text is the full text payload for KindText entries.
 	Text string `json:"text,omitempty"`
+	// TextChars and TextLines are derived only on display copies returned to the
+	// frontend. Stored entries leave them at zero, so persistence remains bounded
+	// while the detail pane can describe a truncated preview accurately.
+	TextChars int `json:"textChars,omitempty"`
+	TextLines int `json:"textLines,omitempty"`
 
 	// ImageFile is the blob filename (not a path) of the full-size PNG, and
 	// Thumb is a small inline PNG data URL used for the list. Both apply to
