@@ -25,6 +25,7 @@ func TestSnapshotCountsKindsAndRepeatedCopies(t *testing.T) {
 		{KindText, false, 9},
 		{KindText, true, 9},
 		{KindImage, false, 15},
+		{KindFile, true, 15},
 	} {
 		if err := s.RecordAt(event.kind, event.repeated, localTime(2026, time.August, 26, event.hour)); err != nil {
 			t.Fatal(err)
@@ -35,7 +36,7 @@ func TestSnapshotCountsKindsAndRepeatedCopies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := (Counts{Total: 3, Text: 2, Image: 1, Repeated: 1})
+	want := (Counts{Total: 4, Text: 2, Image: 1, Repeated: 2})
 	if got.Totals != want {
 		t.Fatalf("Totals = %+v, want %+v", got.Totals, want)
 	}

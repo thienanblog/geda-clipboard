@@ -20,7 +20,16 @@ const (
 	KindNone Kind = iota
 	KindText
 	KindImage
+	KindFile
 )
+
+// FileReference is one filesystem object published by the clipboard. Bookmark
+// is populated on macOS so a sandboxed build can restore access after relaunch;
+// other platforms leave it empty.
+type FileReference struct {
+	Path     string `json:"path"`
+	Bookmark string `json:"bookmark,omitempty"`
+}
 
 // Snapshot is the clipboard state at one point in time.
 type Snapshot struct {
@@ -31,6 +40,7 @@ type Snapshot struct {
 	Kind  Kind
 	Text  string
 	Image []byte // PNG
+	Files []FileReference
 
 	// Pending means the source's preferred supported payload is not readable
 	// yet. The watcher retries this change rather than consuming a lower-priority
@@ -67,6 +77,17 @@ func WriteText(s string) (int64, error) { return writeText(s) }
 // WriteImage places PNG bytes on the clipboard, returning the new change
 // counter.
 func WriteImage(png []byte) (int64, error) { return writeImage(png) }
+
+// WriteFiles places one ordered file group on the clipboard and returns the
+// resulting change counter.
+func WriteFiles(paths []string) (int64, error) { return writeFiles(paths) }
+
+// StartFileAccess restores any persisted platform permission for path and
+// returns the path that should be used. The returned function must be called
+// after the filesystem operation and clipboard write have completed.
+func StartFileAccess(path, bookmark string) (string, func(), error) {
+	return startFileAccess(path, bookmark)
+}
 
 // Frontmost returns the application currently in the foreground.
 func Frontmost() App { return frontmost() }

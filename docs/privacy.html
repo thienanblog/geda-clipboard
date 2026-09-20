@@ -16,7 +16,7 @@
   <p class="lede">Geda Clipboard collects nothing, transmits nothing, and has no servers. Everything it records stays on your Mac.</p>
 </header>
 
-<p><strong>Last updated: 26 August 2026.</strong> This policy covers the macOS
+<p><strong>Last updated: 20 September 2026.</strong> This policy covers the macOS
 application <em>Geda Clipboard</em> ("the app"), published by Ân Vũ ("we", "us").</p>
 
 <h2>The short version</h2>
@@ -51,6 +51,11 @@ held only on your Mac, inside the sandboxed container macOS gives the app:</p>
       <td>Images you copy</td>
       <td>Same, plus a small thumbnail for the list</td>
       <td><code>blobs/</code>, on your Mac</td>
+    </tr>
+    <tr>
+      <td>Paths, basic metadata and a local macOS access bookmark for files and folders you copy</td>
+      <td>So the same ordered file group can be placed on the clipboard again</td>
+      <td><code>history.json</code>, on your Mac; file contents are not duplicated</td>
     </tr>
     <tr>
       <td>The name and icon of the app you copied from</td>

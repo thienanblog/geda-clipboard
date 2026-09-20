@@ -46,6 +46,10 @@ export function FullImage(arg1) {
   return window['go']['main']['App']['FullImage'](arg1);
 }
 
+export function GetFilterOptions() {
+  return window['go']['main']['App']['GetFilterOptions']();
+}
+
 export function GetItem(arg1) {
   return window['go']['main']['App']['GetItem'](arg1);
 }
@@ -66,8 +70,8 @@ export function InitialView() {
   return window['go']['main']['App']['InitialView']();
 }
 
-export function List(arg1) {
-  return window['go']['main']['App']['List'](arg1);
+export function List(arg1, arg2, arg3) {
+  return window['go']['main']['App']['List'](arg1, arg2, arg3);
 }
 
 export function ListPinned() {

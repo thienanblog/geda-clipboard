@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -326,6 +327,13 @@ func (a *App) onClipboardChange(snap clipboard.Snapshot, source clipboard.App) {
 		capture.ImageH = h
 		// The decode above is the app's single largest allocation.
 		defer releaseMemory()
+	case clipboard.KindFile:
+		capture.Kind = store.KindFile
+		for _, file := range snap.Files {
+			capture.Files = append(capture.Files, store.FileReference{
+				Path: file.Path, Bookmark: file.Bookmark,
+			})
+		}
 	default:
 		return
 	}
@@ -678,16 +686,29 @@ func shouldHideOnBlur(visiblePopup, foreground bool) bool {
 // Frontend API: history
 // ---------------------------------------------------------------------------
 
-// List returns history entries matching query, pinned entries first.
-func (a *App) List(query string) []*store.Item {
+// List returns history entries matching query and optional filters, pinned
+// entries first.
+func (a *App) List(query, kind, source string) []*store.Item {
 	if a.store == nil {
 		return []*store.Item{}
 	}
-	items := a.store.ListPreview(query)
+	items := a.store.ListPreviewFiltered(query, kind, source)
 	if items == nil {
 		return []*store.Item{}
 	}
 	return items
+}
+
+// GetFilterOptions returns filter values from the complete current history.
+func (a *App) GetFilterOptions() store.FilterOptions {
+	if a.store == nil {
+		return store.FilterOptions{Sources: []store.SourceOption{}}
+	}
+	options := a.store.Options()
+	if options.Sources == nil {
+		options.Sources = []store.SourceOption{}
+	}
+	return options
 }
 
 // GetItem returns bounded display data for one entry. The popup list uses
@@ -705,6 +726,21 @@ func (a *App) GetItem(id string) (*store.Item, error) {
 	// These fields are storage implementation details, not display data.
 	item.ImageFile = ""
 	item.Hash = ""
+	if item.Kind == store.KindFile {
+		refs, _ := a.store.FileReferences(id)
+		for idx := range item.Files {
+			if idx >= len(refs) {
+				item.Files[idx].Missing = true
+				continue
+			}
+			resolved, stop, accessErr := clipboard.StartFileAccess(refs[idx].Path, refs[idx].Bookmark)
+			if accessErr == nil {
+				_, accessErr = os.Stat(resolved)
+			}
+			stop()
+			item.Files[idx].Missing = accessErr != nil
+		}
+	}
 	return item, nil
 }
 
@@ -779,6 +815,30 @@ func (a *App) use(id string, pasteBack bool) error {
 			return fmt.Errorf("read image: %w", err)
 		}
 		change, err = clipboard.WriteImage(raw)
+	case store.KindFile:
+		files, ok := a.store.FileReferences(id)
+		if !ok {
+			return fmt.Errorf("file entry not found")
+		}
+		paths := make([]string, 0, len(files))
+		stops := make([]func(), 0, len(files))
+		defer func() {
+			for idx := len(stops) - 1; idx >= 0; idx-- {
+				stops[idx]()
+			}
+		}()
+		for _, file := range files {
+			resolved, stop, accessErr := clipboard.StartFileAccess(file.Path, file.Bookmark)
+			if accessErr != nil {
+				return fmt.Errorf("file is no longer available: %s: %w", file.Name, accessErr)
+			}
+			stops = append(stops, stop)
+			if _, statErr := os.Stat(resolved); statErr != nil {
+				return fmt.Errorf("file is no longer available: %s", file.Name)
+			}
+			paths = append(paths, resolved)
+		}
+		change, err = clipboard.WriteFiles(paths)
 	default:
 		return fmt.Errorf("unsupported entry kind %q", item.Kind)
 	}

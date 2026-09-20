@@ -54,6 +54,12 @@ export function oneLine(text: string | undefined): string {
 /** Human label for an entry, mirroring the Go side's Preview(). */
 export function itemLabel(item: { kind: string; text?: string }): string {
   if (item.kind === 'image') return 'Image'
+  if (item.kind === 'file') {
+    const files = (item as { files?: Array<{ name: string }>; fileCount?: number }).files ?? []
+    const count = (item as { fileCount?: number }).fileCount ?? files.length
+    if (files.length === 0) return 'Files'
+    return count > 1 ? `${files[0].name} +${count - 1}` : files[0].name
+  }
   const collapsed = oneLine(item.text)
   return collapsed === '' ? '(whitespace)' : collapsed
 }

@@ -3,6 +3,7 @@
 package clipboard
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 var (
 	user32   = windows.NewLazySystemDLL("user32.dll")
 	kernel32 = windows.NewLazySystemDLL("kernel32.dll")
+	shell32  = windows.NewLazySystemDLL("shell32.dll")
 
 	procGetClipboardSequenceNumber = user32.NewProc("GetClipboardSequenceNumber")
 	procIsClipboardFormatAvailable = user32.NewProc("IsClipboardFormatAvailable")
@@ -26,6 +28,8 @@ var (
 	procOpenClipboard              = user32.NewProc("OpenClipboard")
 	procCloseClipboard             = user32.NewProc("CloseClipboard")
 	procGetClipboardData           = user32.NewProc("GetClipboardData")
+	procEmptyClipboard             = user32.NewProc("EmptyClipboard")
+	procSetClipboardData           = user32.NewProc("SetClipboardData")
 	procGetForegroundWindow        = user32.NewProc("GetForegroundWindow")
 	procSetForegroundWindow        = user32.NewProc("SetForegroundWindow")
 	procGetWindowThreadProcessId   = user32.NewProc("GetWindowThreadProcessId")
@@ -34,8 +38,13 @@ var (
 	procGlobalLock                 = kernel32.NewProc("GlobalLock")
 	procGlobalUnlock               = kernel32.NewProc("GlobalUnlock")
 	procGlobalSize                 = kernel32.NewProc("GlobalSize")
+	procGlobalAlloc                = kernel32.NewProc("GlobalAlloc")
+	procGlobalFree                 = kernel32.NewProc("GlobalFree")
 	procRtlMoveMemory              = kernel32.NewProc("RtlMoveMemory")
+	procDragQueryFileW             = shell32.NewProc("DragQueryFileW")
 )
+
+const clipboardFormatHDrop = 15
 
 // initOnce guards x/clipboard, which must be initialised before use.
 var (
@@ -171,6 +180,20 @@ func read() (Snapshot, error) {
 			optedOut("CanUploadToCloudClipboard"),
 	}
 
+	// Explorer also publishes text representations for copied files. CF_HDROP
+	// must win so an ordered multi-file copy can be restored faithfully.
+	files, err := readFiles()
+	if err != nil {
+		return Snapshot{}, err
+	}
+	if len(files) > 0 {
+		snap.Kind = KindFile
+		for _, path := range files {
+			snap.Files = append(snap.Files, FileReference{Path: path})
+		}
+		return snap, nil
+	}
+
 	// Prefer text: on Windows a copied image usually offers no text at all,
 	// while copied rich content offers both and the text is the useful part.
 	if text := xclipboard.Read(xclipboard.FmtText); len(text) > 0 {
@@ -205,6 +228,122 @@ func writeImage(png []byte) (int64, error) {
 	}
 	xclipboard.Write(xclipboard.FmtImage, png)
 	return changeCount(), nil
+}
+
+type dropFiles struct {
+	Offset uint32
+	X      int32
+	Y      int32
+	NC     int32
+	Wide   int32
+}
+
+const (
+	_ = uint(unsafe.Sizeof(dropFiles{}) - 20)
+	_ = uint(20 - unsafe.Sizeof(dropFiles{}))
+)
+
+func readFiles() ([]string, error) {
+	available, _, _ := procIsClipboardFormatAvailable.Call(clipboardFormatHDrop)
+	if available == 0 {
+		return nil, nil
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if err := openClipboardRetry(); err != nil {
+		return nil, fmt.Errorf("open file clipboard: %w", err)
+	}
+	defer procCloseClipboard.Call()
+
+	hDrop, _, err := procGetClipboardData.Call(clipboardFormatHDrop)
+	if hDrop == 0 {
+		return nil, fmt.Errorf("read file clipboard: %w", err)
+	}
+	count, _, _ := procDragQueryFileW.Call(hDrop, 0xffffffff, 0, 0)
+	files := make([]string, 0, int(count))
+	for idx := uintptr(0); idx < count; idx++ {
+		length, _, _ := procDragQueryFileW.Call(hDrop, idx, 0, 0)
+		if length == 0 {
+			continue
+		}
+		buf := make([]uint16, int(length)+1)
+		copied, _, _ := procDragQueryFileW.Call(
+			hDrop, idx, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)),
+		)
+		if copied > 0 {
+			files = append(files, windows.UTF16ToString(buf))
+		}
+	}
+	return files, nil
+}
+
+func encodeHDrop(paths []string) ([]byte, error) {
+	if len(paths) == 0 {
+		return nil, errors.New("empty file list")
+	}
+	var names []uint16
+	for _, path := range paths {
+		encoded, err := windows.UTF16FromString(path)
+		if err != nil || path == "" {
+			return nil, fmt.Errorf("invalid file path %q", path)
+		}
+		names = append(names, encoded...)
+	}
+	names = append(names, 0)
+
+	headerSize := int(unsafe.Sizeof(dropFiles{}))
+	payload := make([]byte, headerSize+len(names)*2)
+	binary.LittleEndian.PutUint32(payload[0:4], uint32(headerSize))
+	binary.LittleEndian.PutUint32(payload[16:20], 1)
+	for idx, value := range names {
+		binary.LittleEndian.PutUint16(payload[headerSize+idx*2:], value)
+	}
+	return payload, nil
+}
+
+func writeFiles(paths []string) (int64, error) {
+	payload, err := encodeHDrop(paths)
+	if err != nil {
+		return 0, err
+	}
+
+	const globalMoveable = 0x0002
+	hMem, _, allocErr := procGlobalAlloc.Call(globalMoveable, uintptr(len(payload)))
+	if hMem == 0 {
+		return 0, fmt.Errorf("allocate file clipboard: %w", allocErr)
+	}
+	owned := true
+	defer func() {
+		if owned {
+			procGlobalFree.Call(hMem)
+		}
+	}()
+	ptr, _, lockErr := procGlobalLock.Call(hMem)
+	if ptr == 0 {
+		return 0, fmt.Errorf("lock file clipboard: %w", lockErr)
+	}
+	procRtlMoveMemory.Call(ptr, uintptr(unsafe.Pointer(&payload[0])), uintptr(len(payload)))
+	procGlobalUnlock.Call(hMem)
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if err := openClipboardRetry(); err != nil {
+		return 0, fmt.Errorf("open file clipboard: %w", err)
+	}
+	defer procCloseClipboard.Call()
+	if ok, _, clearErr := procEmptyClipboard.Call(); ok == 0 {
+		return 0, fmt.Errorf("clear file clipboard: %w", clearErr)
+	}
+	if handle, _, setErr := procSetClipboardData.Call(clipboardFormatHDrop, hMem); handle == 0 {
+		return 0, fmt.Errorf("set file clipboard: %w", setErr)
+	}
+	owned = false
+	return changeCount(), nil
+}
+
+func startFileAccess(path, bookmark string) (string, func(), error) {
+	return path, func() {}, nil
 }
 
 // rememberedWindow is the foreground window captured before the popup opened.

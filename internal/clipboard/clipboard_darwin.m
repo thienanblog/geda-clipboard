@@ -87,13 +87,14 @@ static NSData *pngFromPasteboard(NSPasteboard *pb, NSPasteboardType type,
     return png;
 }
 
-void gedaRead(int *kind, char **text, void **img, int *imgLen,
+void gedaRead(int *kind, char **text, void **img, int *imgLen, char **filesJSON,
               int *concealed, int *transient, int *remote, int *pending) {
     @autoreleasepool {
         *kind = 0;
         *text = NULL;
         *img = NULL;
         *imgLen = 0;
+        *filesJSON = NULL;
         *concealed = 0;
         *transient = 0;
         *remote = 0;
@@ -120,6 +121,43 @@ void gedaRead(int *kind, char **text, void **img, int *imgLen,
             *transient = 1;
         }
 
+        // File URLs must win over their plain-text fallback. Finder publishes
+        // both, and consuming the string would make it impossible to put the
+        // same ordered group back on the pasteboard later.
+        NSDictionary *fileOptions = @{
+            NSPasteboardURLReadingFileURLsOnlyKey: @YES,
+        };
+        NSArray<NSURL *> *fileURLs = [pb readObjectsForClasses:@[[NSURL class]]
+                                                       options:fileOptions];
+        if ([fileURLs count] > 0) {
+            NSMutableArray<NSDictionary *> *files = [NSMutableArray arrayWithCapacity:[fileURLs count]];
+            for (NSURL *url in fileURLs) {
+                if ([url isFileURL] && [url path] != nil) {
+                    NSMutableDictionary *file = [NSMutableDictionary dictionaryWithObject:[url path]
+                                                                                   forKey:@"path"];
+                    NSError *bookmarkError = nil;
+                    NSData *bookmark = [url bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
+                                     includingResourceValuesForKeys:nil
+                                                      relativeToURL:nil
+                                                              error:&bookmarkError];
+                    if (bookmark != nil) {
+                        [file setObject:[bookmark base64EncodedStringWithOptions:0] forKey:@"bookmark"];
+                    }
+                    [files addObject:file];
+                }
+            }
+            if ([files count] > 0) {
+                NSData *json = [NSJSONSerialization dataWithJSONObject:files options:0 error:nil];
+                NSString *encoded = [[[NSString alloc] initWithData:json
+                                                           encoding:NSUTF8StringEncoding] autorelease];
+                if (encoded != nil) {
+                    *kind = 3;
+                    *filesJSON = copyCString(encoded);
+                    return;
+                }
+            }
+        }
+
         // Walk the types in the order the source app declared them and take the
         // first one we understand, so we honour its notion of the primary
         // representation.
@@ -128,8 +166,7 @@ void gedaRead(int *kind, char **text, void **img, int *imgLen,
                           [type isEqualToString:@"public.utf8-plain-text"] ||
                           [type isEqualToString:NSPasteboardTypeRTF] ||
                           [type isEqualToString:NSPasteboardTypeHTML] ||
-                          [type isEqualToString:NSPasteboardTypeURL] ||
-                          [type isEqualToString:@"public.file-url"];
+                          [type isEqualToString:NSPasteboardTypeURL];
             BOOL isImage = [readableImageTypes() containsObject:type];
 
             if (isText) {
@@ -218,6 +255,84 @@ long long gedaWriteImage(const void *bytes, int len) {
             }
         }
         return (long long)[pb changeCount];
+    }
+}
+
+long long gedaWriteFiles(const char *filesJSON) {
+    @autoreleasepool {
+        if (filesJSON == NULL) {
+            return 0;
+        }
+        NSString *encoded = [NSString stringWithUTF8String:filesJSON];
+        NSData *data = [encoded dataUsingEncoding:NSUTF8StringEncoding];
+        NSArray<NSString *> *paths = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if (![paths isKindOfClass:[NSArray class]] || [paths count] == 0) {
+            return 0;
+        }
+
+        NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:[paths count]];
+        for (id path in paths) {
+            if (![path isKindOfClass:[NSString class]] || [path length] == 0) {
+                return 0;
+            }
+            [urls addObject:[NSURL fileURLWithPath:path]];
+        }
+
+        NSPasteboard *pb = [NSPasteboard generalPasteboard];
+        [pb clearContents];
+        if (![pb writeObjects:urls]) {
+            return 0;
+        }
+        return (long long)[pb changeCount];
+    }
+}
+
+void *gedaStartFileAccess(const char *bookmark, char **resolvedPath, char **errorMessage) {
+    @autoreleasepool {
+        *resolvedPath = NULL;
+        *errorMessage = NULL;
+        if (bookmark == NULL) {
+            *errorMessage = copyCString(@"missing security-scoped bookmark");
+            return NULL;
+        }
+
+        NSString *encoded = [NSString stringWithUTF8String:bookmark];
+        NSData *data = [[[NSData alloc] initWithBase64EncodedString:encoded options:0] autorelease];
+        if (data == nil) {
+            *errorMessage = copyCString(@"invalid security-scoped bookmark");
+            return NULL;
+        }
+
+        BOOL stale = NO;
+        NSError *error = nil;
+        NSURL *url = [NSURL URLByResolvingBookmarkData:data
+                                               options:NSURLBookmarkResolutionWithSecurityScope
+                                         relativeToURL:nil
+                                   bookmarkDataIsStale:&stale
+                                                 error:&error];
+        if (url == nil) {
+            *errorMessage = copyCString([error localizedDescription]);
+            return NULL;
+        }
+        if (![url startAccessingSecurityScopedResource]) {
+            *errorMessage = copyCString(@"security-scoped file access was denied");
+            return NULL;
+        }
+
+        NSURL *token = [url retain];
+        *resolvedPath = copyCString([url path]);
+        return token;
+    }
+}
+
+void gedaStopFileAccess(void *token) {
+    @autoreleasepool {
+        if (token == NULL) {
+            return;
+        }
+        NSURL *url = (NSURL *)token;
+        [url stopAccessingSecurityScopedResource];
+        [url release];
     }
 }
 

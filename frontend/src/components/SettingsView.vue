@@ -582,7 +582,7 @@ onUnmounted(() => {
             >
               <span class="drag-handle" aria-hidden="true">⋮⋮</span>
               <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="pinned-thumb" alt="" />
-              <span v-else class="pinned-kind" aria-hidden="true">T</span>
+              <span v-else class="pinned-kind" aria-hidden="true">{{ item.kind === 'file' ? '▤' : 'T' }}</span>
               <span class="pinned-copy">
                 <strong>{{ pinnedLabel(item) }}</strong>
                 <small>{{ item.sourceApp || 'Unknown application' }}</small>
@@ -625,7 +625,7 @@ onUnmounted(() => {
             >
               <span class="drag-handle" aria-hidden="true">⋮⋮</span>
               <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" class="pinned-thumb" alt="" />
-              <span v-else class="pinned-kind" aria-hidden="true">T</span>
+              <span v-else class="pinned-kind" aria-hidden="true">{{ item.kind === 'file' ? '▤' : 'T' }}</span>
               <span class="pinned-copy">
                 <strong>{{ pinnedLabel(item) }}</strong>
                 <small>{{ item.sourceApp || 'Unknown application' }}</small>

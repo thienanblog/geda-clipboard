@@ -73,14 +73,14 @@ It also tells you what it caught. Every copy, and every entry you pick out of th
 
 FEATURES
 
-• Searchable history of text and images, with three thumbnail sizes
+• Searchable history of text, images and file groups, filterable by content type or source application
 • The popup opens at the pointer, or under the menu bar icon, whichever you prefer
 • Notifications on copy and on reuse, each one switchable on its own
 • Choosing an entry returns you to the app you came from, so pasting is one ⌘V
 • Copying the same thing again bumps the entry you already have and raises its counter, instead of filling the list with duplicates
 • One combined day, week, month or year chart compares all copies, text, images and repeated copies, with independently hideable series and bounded counters rather than per-copy events
 • Every entry records the app it came from, with its icon, and when you first and last copied it
-• Point at any row for a card with a text preview, its full length, and its history
+• Point at any row for a card with a content preview, metadata, and copy history
 • Pin the entries you use every day, arrange their priority, and keep them safe when clearing routine history
 • Keyboard throughout: ⌘1 to ⌘9 to pick an entry, ⌥P to pin, ⌥⌫ to delete, Esc to dismiss
 • A global shortcut you can rebind to whatever is free on your Mac
@@ -118,11 +118,12 @@ For the first submission this field is not shown. From the second version on,
 paste that release's section from `CHANGELOG.md`, rewritten for users rather
 than for the repository.
 
-For version 0.12.1:
+For version 0.13.0:
 
 ```
-• Large clipboard histories now open, scroll and preview smoothly while keeping full content available for copying
-• Hover previews now dismiss correctly when leaving a row or scrolling the history
+• Filter clipboard history by text, files, images, or the application each entry came from
+• Copy files and folders from Finder into history, including ordered multi-file groups, and place them back on the clipboard later
+• File entries show group size, metadata, and a clear warning when an original item has moved or been deleted
 ```
 
 ## 8. App Privacy

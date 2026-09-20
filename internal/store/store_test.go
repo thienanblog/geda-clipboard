@@ -87,6 +87,103 @@ func TestAddDuplicateBumpsCount(t *testing.T) {
 	}
 }
 
+func TestFileGroupPersistsDedupesAndReportsMissing(t *testing.T) {
+	dir := t.TempDir()
+	firstPath := filepath.Join(dir, "first.txt")
+	secondPath := filepath.Join(dir, "second.txt")
+	if err := os.WriteFile(firstPath, []byte("one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondPath, []byte("second"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := OpenAt(filepath.Join(dir, "store"), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, isNew, err := s.Add(Capture{
+		Kind: KindFile, Files: []FileReference{{Path: firstPath, Bookmark: "first-bookmark"}, {Path: secondPath, Bookmark: "second-bookmark"}}, SourceApp: "Finder", At: time.Now(),
+	})
+	if err != nil || !isNew {
+		t.Fatalf("Add file group: item=%+v isNew=%v err=%v", item, isNew, err)
+	}
+	if item.FileCount != 2 || item.Preview() != "first.txt +1" || item.Bytes != 9 {
+		t.Fatalf("file item = %+v", item)
+	}
+	if _, isNew, err := s.Add(Capture{Kind: KindFile, Files: []FileReference{{Path: firstPath, Bookmark: "first-bookmark"}, {Path: secondPath, Bookmark: "second-bookmark"}}, At: time.Now()}); err != nil || isNew {
+		t.Fatalf("duplicate file group: isNew=%v err=%v", isNew, err)
+	}
+	if _, isNew, err := s.Add(Capture{Kind: KindFile, Files: []FileReference{{Path: secondPath}, {Path: firstPath}}, At: time.Now()}); err != nil || !isNew {
+		t.Fatalf("reordered file group should be distinct: isNew=%v err=%v", isNew, err)
+	}
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+
+	reopened, err := OpenAt(filepath.Join(dir, "store"), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reopened.Close() })
+	if got := reopened.List("first.txt"); len(got) != 2 {
+		t.Fatalf("search file name returned %d entries, want 2", len(got))
+	}
+	refs, ok := reopened.FileReferences(item.ID)
+	if !ok || len(refs) != 2 || refs[0].Bookmark != "first-bookmark" || refs[1].Bookmark != "second-bookmark" {
+		t.Fatalf("persisted file references = %+v, ok=%v", refs, ok)
+	}
+	preview, ok := reopened.GetPreview(item.ID)
+	if !ok || preview.Files[0].Bookmark != "" || preview.Files[1].Bookmark != "" {
+		t.Fatalf("frontend preview exposed bookmarks: %+v, ok=%v", preview, ok)
+	}
+}
+
+func TestFilteredPreviewAndSourceOptions(t *testing.T) {
+	s := newStore(t, 10)
+	base := time.Now()
+	if _, _, err := s.Add(Capture{Kind: KindText, Text: "alpha", SourceApp: "Safari", SourceIconKey: "com.apple.Safari", At: base}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Add(Capture{Kind: KindImage, Image: []byte("png"), SourceApp: "Preview", SourceIconKey: "com.apple.Preview", At: base.Add(time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Add(Capture{Kind: KindText, Text: "latest", SourceApp: "Safari", SourceIconKey: "com.apple.Safari", At: base.Add(2 * time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+
+	options := s.Options()
+	if len(options.Sources) != 2 || options.Sources[0].Name != "Safari" || options.Sources[1].Name != "Preview" {
+		t.Fatalf("source options = %+v", options.Sources)
+	}
+	got := s.ListPreviewFiltered("alpha", "text", "key:com.apple.Safari")
+	if len(got) != 1 || got[0].Text != "alpha" {
+		t.Fatalf("combined filters = %+v", got)
+	}
+	if got := s.ListPreviewFiltered("", "image", "key:com.apple.Safari"); len(got) != 0 {
+		t.Fatalf("mismatched filters returned %+v", got)
+	}
+}
+
+func TestUnknownPersistedKindAppearsAsOther(t *testing.T) {
+	s := newStore(t, 10)
+	s.mu.Lock()
+	s.items = append(s.items, &Item{
+		ID: "future", Kind: Kind("rich"), Hash: "future-hash", SourceApp: "Future App",
+		FirstCopy: time.Now(), LastCopy: time.Now(), CopyCount: 1,
+	})
+	s.mu.Unlock()
+
+	if !s.Options().HasOther {
+		t.Fatal("unknown persisted kind did not expose Other filter")
+	}
+	got := s.ListPreviewFiltered("", "other", "")
+	if len(got) != 1 || got[0].ID != "future" {
+		t.Fatalf("Other filter = %+v", got)
+	}
+}
+
 func TestEvictionRespectsMax(t *testing.T) {
 	s := newStore(t, 3)
 	base := time.Now()

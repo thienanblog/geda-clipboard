@@ -91,6 +91,12 @@ default; <em>Preferences › Pinned</em> can include them in history clearing an
 also lets you arrange their priority. Statistics can be reset separately under
 <em>Preferences › Statistics</em>. Removing the app deletes the lot.</p>
 
+<p>File entries store references to their original paths, not copies of the
+files themselves. On macOS, a local security-scoped bookmark keeps that access
+available after Geda restarts. If a referenced file is moved or deleted, Geda
+keeps the history entry but marks it as missing and will not paste an incomplete
+group.</p>
+
 <h2>Keyboard shortcuts</h2>
 
 <div class="table-scroll">
@@ -106,7 +112,7 @@ also lets you arrange their priority. Statistics can be reset separately under
     <tr><td>Delete the entry</td><td><code>⌥⌫</code></td></tr>
     <tr><td>Clear history</td><td><code>⌥⇧⌘⌫</code></td></tr>
     <tr><td>Preferences</td><td><code>⌘,</code></td></tr>
-    <tr><td>Clear the search, then close</td><td><code>Esc</code></td></tr>
+    <tr><td>Clear search, clear filters, then close</td><td><code>Esc</code></td></tr>
     <tr><td>Quit</td><td><code>⌘Q</code></td></tr>
   </tbody>
 </table>

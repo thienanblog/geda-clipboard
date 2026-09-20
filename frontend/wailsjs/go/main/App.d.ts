@@ -28,6 +28,8 @@ export function FrontendReady():Promise<void>;
 
 export function FullImage(arg1:string):Promise<string>;
 
+export function GetFilterOptions():Promise<store.FilterOptions>;
+
 export function GetItem(arg1:string):Promise<store.Item>;
 
 export function GetSettings():Promise<settings.Settings>;
@@ -38,7 +40,7 @@ export function HidePopup():Promise<void>;
 
 export function InitialView():Promise<string>;
 
-export function List(arg1:string):Promise<Array<store.Item>>;
+export function List(arg1:string,arg2:string,arg3:string):Promise<Array<store.Item>>;
 
 export function ListPinned():Promise<Array<store.Item>>;
 

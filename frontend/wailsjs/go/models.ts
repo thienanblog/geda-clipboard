@@ -175,6 +175,72 @@ export namespace statistics {
 
 export namespace store {
 	
+	export class FileReference {
+	    path: string;
+	    name: string;
+	    directory?: boolean;
+	    bytes?: number;
+	    missing?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileReference(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.name = source["name"];
+	        this.directory = source["directory"];
+	        this.bytes = source["bytes"];
+	        this.missing = source["missing"];
+	    }
+	}
+	export class SourceOption {
+	    id: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceOption(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	    }
+	}
+	export class FilterOptions {
+	    hasOther: boolean;
+	    sources: SourceOption[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FilterOptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hasOther = source["hasOther"];
+	        this.sources = this.convertValues(source["sources"], SourceOption);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Item {
 	    id: string;
 	    kind: string;
@@ -186,6 +252,8 @@ export namespace store {
 	    imageW?: number;
 	    imageH?: number;
 	    bytes?: number;
+	    files?: FileReference[];
+	    fileCount?: number;
 	    hash: string;
 	    sourceApp?: string;
 	    sourceIconKey?: string;
@@ -214,6 +282,8 @@ export namespace store {
 	        this.imageW = source["imageW"];
 	        this.imageH = source["imageH"];
 	        this.bytes = source["bytes"];
+	        this.files = this.convertValues(source["files"], FileReference);
+	        this.fileCount = source["fileCount"];
 	        this.hash = source["hash"];
 	        this.sourceApp = source["sourceApp"];
 	        this.sourceIconKey = source["sourceIconKey"];

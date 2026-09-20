@@ -28,6 +28,7 @@ const (
 	saveDelay       = 750 * time.Millisecond
 	KindText        = "text"
 	KindImage       = "image"
+	KindFile        = "file"
 	RangeDay        = "day"
 	RangeWeek       = "week"
 	RangeMonth      = "month"
@@ -35,7 +36,8 @@ const (
 )
 
 // Counts is the content-free activity summary for one time bucket. Repeated is
-// a subset of Total; Text and Image add up to Total.
+// a subset of Total. Text and Image are dedicated chart series; file copies
+// contribute to Total without being misclassified into either.
 type Counts struct {
 	Total    int64 `json:"total"`
 	Text     int64 `json:"text"`
@@ -45,9 +47,10 @@ type Counts struct {
 
 func (c *Counts) add(kind string, repeated bool) {
 	c.Total++
-	if kind == KindImage {
+	switch kind {
+	case KindImage:
 		c.Image++
-	} else {
+	case KindText:
 		c.Text++
 	}
 	if repeated {
@@ -172,7 +175,7 @@ func (s *Store) Record(kind string, repeated bool) error {
 // RecordAt is Record with an explicit timestamp, primarily for deterministic
 // tests.
 func (s *Store) RecordAt(kind string, repeated bool, at time.Time) error {
-	if kind != KindText && kind != KindImage {
+	if kind != KindText && kind != KindImage && kind != KindFile {
 		return fmt.Errorf("unknown statistics kind %q", kind)
 	}
 	if at.IsZero() {
