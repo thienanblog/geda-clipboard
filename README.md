@@ -16,8 +16,12 @@ were working in.
   Preferences can anchor it under the tray icon instead.
 - **Notifications on copy and paste**, showing the source app and a preview.
   Each can be toggled independently.
-- **Text and image history** with Compact, Comfortable or Large thumbnails;
-  images are stored as separate blob files so the index stays small.
+- **Text, image and file history** with Compact, Comfortable or Large image
+  thumbnails. Filter by content type or source application without weakening
+  full-text search. Images are stored as separate blobs; copied files remain
+  lightweight references to their original paths. Sandboxed macOS builds keep
+  local security-scoped bookmarks so those references remain usable after the
+  app restarts.
 - **Copy counting** — re-copying the same content bumps an existing entry and
   increments its counter rather than creating a duplicate. This is driven by the
   OS clipboard change counter, so an identical re-copy is still detected.

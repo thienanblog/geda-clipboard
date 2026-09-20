@@ -11,7 +11,9 @@ package clipboard
 import "C"
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"unsafe"
 )
 
@@ -25,13 +27,14 @@ func read() (Snapshot, error) {
 		text      *C.char
 		img       unsafe.Pointer
 		imgLen    C.int
+		filesJSON *C.char
 		concealed C.int
 		transient C.int
 		remote    C.int
 		pending   C.int
 	)
 
-	C.gedaRead(&kind, &text, &img, &imgLen, &concealed, &transient, &remote, &pending)
+	C.gedaRead(&kind, &text, &img, &imgLen, &filesJSON, &concealed, &transient, &remote, &pending)
 
 	snap := Snapshot{
 		Concealed: concealed != 0,
@@ -53,6 +56,17 @@ func read() (Snapshot, error) {
 			snap.Image = C.GoBytes(img, imgLen)
 			C.free(img)
 		}
+	case 3:
+		if filesJSON != nil {
+			raw := C.GoString(filesJSON)
+			C.free(unsafe.Pointer(filesJSON))
+			if err := json.Unmarshal([]byte(raw), &snap.Files); err != nil {
+				return Snapshot{}, fmt.Errorf("decode file clipboard: %w", err)
+			}
+			if len(snap.Files) > 0 {
+				snap.Kind = KindFile
+			}
+		}
 	}
 
 	return snap, nil
@@ -71,6 +85,50 @@ func writeImage(png []byte) (int64, error) {
 	buf := C.CBytes(png)
 	defer C.free(buf)
 	return int64(C.gedaWriteImage(buf, C.int(len(png)))), nil
+}
+
+func writeFiles(paths []string) (int64, error) {
+	if len(paths) == 0 {
+		return 0, errors.New("empty file list")
+	}
+	raw, err := json.Marshal(paths)
+	if err != nil {
+		return 0, fmt.Errorf("encode file clipboard: %w", err)
+	}
+	cs := C.CString(string(raw))
+	defer C.free(unsafe.Pointer(cs))
+	change := int64(C.gedaWriteFiles(cs))
+	if change == 0 {
+		return 0, errors.New("write file clipboard")
+	}
+	return change, nil
+}
+
+func startFileAccess(path, bookmark string) (string, func(), error) {
+	if bookmark == "" {
+		return path, func() {}, nil
+	}
+	encoded := C.CString(bookmark)
+	defer C.free(unsafe.Pointer(encoded))
+
+	var resolved, message *C.char
+	token := C.gedaStartFileAccess(encoded, &resolved, &message)
+	if message != nil {
+		defer C.free(unsafe.Pointer(message))
+	}
+	if token == nil {
+		if message != nil {
+			return "", func() {}, errors.New(C.GoString(message))
+		}
+		return "", func() {}, errors.New("restore security-scoped file access")
+	}
+	if resolved == nil {
+		C.gedaStopFileAccess(token)
+		return "", func() {}, errors.New("security-scoped bookmark has no path")
+	}
+	resolvedPath := C.GoString(resolved)
+	C.free(unsafe.Pointer(resolved))
+	return resolvedPath, func() { C.gedaStopFileAccess(token) }, nil
 }
 
 func frontmost() App {

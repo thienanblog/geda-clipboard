@@ -26,6 +26,11 @@ const stats = computed(() => {
   if (props.item.kind === 'image') {
     return [dimensions.value, formatBytes(props.item.bytes)].filter(Boolean).join(' · ')
   }
+  if (props.item.kind === 'file') {
+    const count = props.item.fileCount ?? props.item.files?.length ?? 0
+    const countLabel = `${count.toLocaleString()} item${count === 1 ? '' : 's'}`
+    return [countLabel, formatBytes(props.item.bytes)].filter(Boolean).join(' · ')
+  }
   const chars = props.item.textChars ?? 0
   const lines = props.item.textLines ?? 0
   return chars > 0 && lines > 0 ? formatTextStats(chars, lines) : textStats(props.item.text)
@@ -49,6 +54,16 @@ const deleteHint = computed(() => `Press ${combo(sym.alt, sym.del)} to delete.`)
     <template v-else>
       <div class="preview">
         <img v-if="item.kind === 'image' && item.thumb" :src="item.thumb" alt="" />
+        <ul v-else-if="item.kind === 'file'" class="file-list">
+          <li v-for="file in item.files?.slice(0, 12)" :key="file.path" :class="{ missing: file.missing }">
+            <span class="file-glyph" aria-hidden="true">{{ file.directory ? '▣' : '▤' }}</span>
+            <span :title="file.path">{{ file.name }}</span>
+            <small v-if="file.missing">Missing</small>
+          </li>
+          <li v-if="(item.fileCount ?? 0) > 12" class="more-files">
+            +{{ (item.fileCount ?? 0) - 12 }} more
+          </li>
+        </ul>
         <p v-else class="text">{{ label }}</p>
       </div>
 
@@ -73,7 +88,7 @@ const deleteHint = computed(() => `Press ${combo(sym.alt, sym.del)} to delete.`)
         <dd>{{ item.copyCount }}</dd>
 
         <template v-if="stats">
-          <dt>{{ item.kind === 'image' ? 'Image:' : 'Length:' }}</dt>
+          <dt>{{ item.kind === 'image' ? 'Image:' : item.kind === 'file' ? 'Files:' : 'Length:' }}</dt>
           <dd>{{ stats }}</dd>
         </template>
       </dl>
@@ -124,6 +139,33 @@ const deleteHint = computed(() => `Press ${combo(sym.alt, sym.del)} to delete.`)
   overflow: hidden;
   word-break: break-word;
 }
+
+.file-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.file-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.file-list li > span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-glyph { color: var(--fg-dim); }
+.file-list .missing { color: var(--fg-dim); text-decoration: line-through; }
+.file-list small { margin-left: auto; color: var(--danger, #c33); text-decoration: none; }
+.file-list .more-files { color: var(--fg-dim); }
 
 .hairline {
   margin: 10px 0;

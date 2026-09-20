@@ -9,6 +9,17 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-20
+
+### Added
+
+- **The popup can filter history by content type and source application.** Text,
+  files and images have dedicated filter chips, while the source menu follows
+  the applications represented in current history.
+- **Copied files and folders are now retained as ordered file groups.** Geda
+  stores local path references rather than duplicating file contents and can
+  put single or multi-file entries back on the clipboard.
+
 ## [0.12.1] - 2026-09-01
 
 ### Fixed
@@ -422,7 +433,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.1...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.10.1...v0.11.0

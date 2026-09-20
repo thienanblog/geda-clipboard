@@ -9,13 +9,21 @@
 
 long long gedaChangeCount(void);
 
-// Reads the pasteboard. kind: 0 none, 1 text, 2 image (PNG in img/imgLen).
+// Reads the pasteboard. kind: 0 none, 1 text, 2 image (PNG in img/imgLen),
+// 3 file group (JSON array of path/bookmark objects in filesJSON).
 // pending is set when a supported type is declared but its data is not ready.
-void gedaRead(int *kind, char **text, void **img, int *imgLen,
+void gedaRead(int *kind, char **text, void **img, int *imgLen, char **filesJSON,
               int *concealed, int *transient, int *remote, int *pending);
 
 long long gedaWriteText(const char *text);
 long long gedaWriteImage(const void *bytes, int len);
+long long gedaWriteFiles(const char *filesJSON);
+
+// Resolves and starts access to a security-scoped bookmark. The returned token
+// is owned by the caller and must be passed to gedaStopFileAccess. resolvedPath
+// and errorMessage are malloc'd strings owned by the caller.
+void *gedaStartFileAccess(const char *bookmark, char **resolvedPath, char **errorMessage);
+void gedaStopFileAccess(void *token);
 
 void gedaFrontmost(char **name, char **bundleID);
 void *gedaAppIconPNG(const char *bundleID, int px, int *outLen);

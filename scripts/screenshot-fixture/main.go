@@ -231,6 +231,36 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// A two-file Finder copy exercises the file row and source/type filters.
+	// The tiny files live under the disposable fixture home, never the user's
+	// real Documents directory.
+	fixtureDocuments := filepath.Join(abs, "Documents")
+	if err := os.MkdirAll(fixtureDocuments, 0o700); err != nil {
+		log.Fatal(err)
+	}
+	filePaths := []string{
+		filepath.Join(fixtureDocuments, "Q3 budget.xlsx"),
+		filepath.Join(fixtureDocuments, "Launch notes.pdf"),
+	}
+	for _, path := range filePaths {
+		if err := os.WriteFile(path, []byte("synthetic screenshot fixture\n"), 0o600); err != nil {
+			log.Fatal(err)
+		}
+	}
+	if _, _, err := st.Add(store.Capture{
+		Kind: store.KindFile,
+		Files: []store.FileReference{
+			{Path: filePaths[0]},
+			{Path: filePaths[1]},
+		},
+		SourceApp:     "Finder",
+		SourceIconKey: "com.apple.finder",
+		SourceIcon:    iconFor("com.apple.finder"),
+		At:            now.Add(-12 * time.Minute),
+	}); err != nil {
+		log.Fatal(err)
+	}
+
 	for _, id := range pins {
 		if _, err := st.TogglePin(id); err != nil {
 			log.Fatalf("pin %s: %v", id, err)

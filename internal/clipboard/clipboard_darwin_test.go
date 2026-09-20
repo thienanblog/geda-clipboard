@@ -7,6 +7,9 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -25,6 +28,12 @@ func preserveClipboard(t *testing.T) {
 			WriteText(before.Text)
 		case KindImage:
 			WriteImage(before.Image)
+		case KindFile:
+			paths := make([]string, 0, len(before.Files))
+			for _, file := range before.Files {
+				paths = append(paths, file.Path)
+			}
+			WriteFiles(paths)
 		}
 	})
 }
@@ -91,6 +100,45 @@ func TestImageRoundTrip(t *testing.T) {
 	}
 	if cfg.Width != 3 || cfg.Height != 2 {
 		t.Errorf("image size = %dx%d, want 3x2", cfg.Width, cfg.Height)
+	}
+}
+
+func TestFileGroupRoundTrip(t *testing.T) {
+	preserveClipboard(t)
+
+	dir := t.TempDir()
+	want := []string{filepath.Join(dir, "one.txt"), filepath.Join(dir, "two.png")}
+	for _, path := range want {
+		if err := os.WriteFile(path, []byte(filepath.Base(path)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := WriteFiles(want); err != nil {
+		t.Fatalf("WriteFiles: %v", err)
+	}
+	snap, err := Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	got := make([]string, 0, len(snap.Files))
+	for _, file := range snap.Files {
+		got = append(got, file.Path)
+		if file.Bookmark == "" {
+			t.Errorf("file %q has no security-scoped bookmark", file.Path)
+			continue
+		}
+		resolved, stop, err := StartFileAccess(file.Path, file.Bookmark)
+		if err != nil {
+			t.Errorf("StartFileAccess(%q): %v", file.Path, err)
+			continue
+		}
+		if _, err := os.Stat(resolved); err != nil {
+			t.Errorf("stat resolved file %q: %v", resolved, err)
+		}
+		stop()
+	}
+	if snap.Kind != KindFile || !reflect.DeepEqual(got, want) {
+		t.Fatalf("file snapshot = kind %v files %q, want KindFile %q", snap.Kind, snap.Files, want)
 	}
 }
 

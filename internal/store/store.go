@@ -31,6 +31,7 @@ type Capture struct {
 	ImageW int
 	ImageH int
 	Thumb  string // PNG data URL
+	Files  []FileReference
 
 	SourceApp string
 	// SourceIconKey identifies the source app (bundle ID or executable path)
@@ -227,6 +228,7 @@ func (s *Store) Add(c Capture) (*Item, bool, error) {
 	}
 
 	var hash string
+	var fileBytes int64
 	switch c.Kind {
 	case KindText:
 		if c.Text == "" {
@@ -238,6 +240,25 @@ func (s *Store) Add(c Capture) (*Item, bool, error) {
 			return nil, false, errors.New("empty image capture")
 		}
 		hash = hashBytes(c.Image)
+	case KindFile:
+		if len(c.Files) == 0 {
+			return nil, false, errors.New("empty file capture")
+		}
+		for idx := range c.Files {
+			if c.Files[idx].Path == "" {
+				return nil, false, errors.New("file capture contains an empty path")
+			}
+			c.Files[idx].Path = filepath.Clean(c.Files[idx].Path)
+			c.Files[idx].Name = filepath.Base(c.Files[idx].Path)
+			if info, err := os.Stat(c.Files[idx].Path); err == nil {
+				c.Files[idx].Directory = info.IsDir()
+				if !c.Files[idx].Directory {
+					c.Files[idx].Bytes = info.Size()
+					fileBytes += info.Size()
+				}
+			}
+		}
+		hash = hashFiles(c.Files)
 	default:
 		return nil, false, fmt.Errorf("unknown kind %q", c.Kind)
 	}
@@ -257,6 +278,11 @@ func (s *Store) Add(c Capture) (*Item, bool, error) {
 		if c.SourceApp != "" {
 			it.SourceApp = c.SourceApp
 			it.SourceIconKey = c.SourceIconKey
+		}
+		if c.Kind == KindFile {
+			it.Files = append(it.Files[:0], c.Files...)
+			it.FileCount = len(c.Files)
+			it.Bytes = fileBytes
 		}
 		// Move to front.
 		s.items = append(s.items[:idx], s.items[idx+1:]...)
@@ -282,13 +308,17 @@ func (s *Store) Add(c Capture) (*Item, bool, error) {
 	switch c.Kind {
 	case KindText:
 		item.Text = c.Text
-		item.Bytes = len(c.Text)
+		item.Bytes = int64(len(c.Text))
 	case KindImage:
 		item.ImageFile = item.ID + ".png"
 		item.Thumb = c.Thumb
 		item.ImageW = c.ImageW
 		item.ImageH = c.ImageH
-		item.Bytes = len(c.Image)
+		item.Bytes = int64(len(c.Image))
+	case KindFile:
+		item.FileCount = len(c.Files)
+		item.Files = append([]FileReference(nil), c.Files...)
+		item.Bytes = fileBytes
 	}
 
 	s.items = append([]*Item{item}, s.items...)
@@ -330,6 +360,12 @@ func (s *Store) rememberIconLocked(key, icon string) {
 // hand to the frontend. Caller must hold the lock.
 func (s *Store) resolveLocked(it *Item) Item {
 	c := *it
+	if len(it.Files) > 0 {
+		c.Files = append([]FileReference(nil), it.Files...)
+		for idx := range c.Files {
+			c.Files[idx].Bookmark = ""
+		}
+	}
 	if c.SourceIconKey != "" {
 		c.SourceIcon = s.icons[c.SourceIconKey]
 	}
@@ -379,17 +415,66 @@ func (s *Store) List(query string) []*Item {
 	return s.listLocked(query, false)
 }
 
+// SourceOption describes one source application represented in history.
+type SourceOption struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// FilterOptions contains values independent of the active query and filters.
+type FilterOptions struct {
+	HasOther bool           `json:"hasOther"`
+	Sources  []SourceOption `json:"sources"`
+}
+
+// Options returns source applications in most-recent-entry order. Unknown
+// kinds are grouped under Other so a future persisted kind remains reachable.
+func (s *Store) Options() FilterOptions {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	seen := make(map[string]struct{})
+	var result FilterOptions
+	for _, it := range s.items {
+		if it.Kind != KindText && it.Kind != KindImage && it.Kind != KindFile {
+			result.HasOther = true
+		}
+		if it.SourceApp == "" {
+			continue
+		}
+		id := sourceID(it)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result.Sources = append(result.Sources, SourceOption{ID: id, Name: it.SourceApp})
+	}
+	return result
+}
+
 // ListPreview returns the same ordered, searchable history as List, but keeps
 // large and display-only payloads out of the WebView bootstrap response. The
 // popup fetches the complete entry only for rows that become visible or are
 // inspected, while search still runs against the full text held by the store.
 func (s *Store) ListPreview(query string) []*Item {
+	return s.ListPreviewFiltered(query, "", "")
+}
+
+// ListPreviewFiltered applies search, kind and source together while retaining
+// full stored payloads for matching. The returned copies remain lightweight.
+func (s *Store) ListPreviewFiltered(query, kind, source string) []*Item {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	items := s.listLocked(query, false)
+	items := s.listFilteredLocked(query, kind, source, false)
 	for _, it := range items {
 		it.Text = boundedTextPreview(it.Text)
+		if it.Kind == KindFile && len(it.Files) > 1 {
+			it.Files = append([]FileReference(nil), it.Files[:1]...)
+		}
 		it.Thumb = ""
 		it.SourceIcon = ""
 		it.ImageFile = ""
@@ -406,12 +491,19 @@ func (s *Store) ListPinned() []*Item {
 }
 
 func (s *Store) listLocked(query string, onlyPinned bool) []*Item {
+	return s.listFilteredLocked(query, "", "", onlyPinned)
+}
+
+func (s *Store) listFilteredLocked(query, kind, source string, onlyPinned bool) []*Item {
 
 	needle := strings.ToLower(strings.TrimSpace(query))
 
 	var priority, automatic, rest []*Item
 	for _, it := range s.items {
 		if needle != "" && !matches(it, needle) {
+			continue
+		}
+		if !matchesKind(it.Kind, kind) || (source != "" && sourceID(it) != source) {
 			continue
 		}
 		if onlyPinned && !it.Pinned {
@@ -441,6 +533,11 @@ func matches(it *Item, needle string) bool {
 	if strings.Contains(strings.ToLower(it.SourceApp), needle) {
 		return true
 	}
+	for _, file := range it.Files {
+		if strings.Contains(strings.ToLower(file.Name), needle) || strings.Contains(strings.ToLower(file.Path), needle) {
+			return true
+		}
+	}
 	// Let "ima", "image" and so on find image entries, but not a single letter:
 	// Contains with the arguments this way round would make "a", "e", "g", "i"
 	// and "m" each match every image in the history.
@@ -448,6 +545,27 @@ func matches(it *Item, needle string) bool {
 		return true
 	}
 	return false
+}
+
+func matchesKind(kind Kind, filter string) bool {
+	switch filter {
+	case "", "all":
+		return true
+	case "other":
+		return kind != KindText && kind != KindImage && kind != KindFile
+	default:
+		return string(kind) == filter
+	}
+}
+
+func sourceID(it *Item) string {
+	if it.SourceIconKey != "" {
+		return "key:" + it.SourceIconKey
+	}
+	if it.SourceApp != "" {
+		return "name:" + it.SourceApp
+	}
+	return ""
 }
 
 // boundedTextPreview preserves both ends of long text because paths, URLs and
@@ -498,6 +616,19 @@ func (s *Store) GetPreview(id string) (*Item, bool) {
 		it.Text = boundedTextPreview(it.Text)
 	}
 	return it, true
+}
+
+// FileReferences returns the persisted file paths and platform access grants
+// for internal clipboard use. The frontend-facing copies strip bookmarks.
+func (s *Store) FileReferences(id string) ([]FileReference, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, it := range s.items {
+		if it.ID == id && it.Kind == KindFile {
+			return append([]FileReference(nil), it.Files...), true
+		}
+	}
+	return nil, false
 }
 
 // Get returns a copy of the entry with the given ID.

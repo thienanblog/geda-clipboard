@@ -17,6 +17,11 @@ const emit = defineEmits<{
 
 const items = ref<store.Item[]>([])
 const query = ref('')
+type ContentFilter = 'all' | 'text' | 'file' | 'image' | 'other'
+const contentFilter = ref<ContentFilter>('all')
+const sourceFilter = ref('')
+const filterSources = ref<store.SourceOption[]>([])
+const hasOther = ref(false)
 const selected = ref(0)
 const searchEl = ref<HTMLInputElement | null>(null)
 const listEl = ref<HTMLElement | null>(null)
@@ -55,6 +60,19 @@ const errorMessage = ref('')
 let errorTimer: number | undefined
 
 const empty = computed(() => items.value.length === 0)
+const filtersActive = computed(() => contentFilter.value !== 'all' || sourceFilter.value !== '')
+const kindFilters = computed<Array<{ value: ContentFilter; label: string; icon: string }>>(() => [
+  { value: 'all', label: 'All', icon: '▦' },
+  { value: 'text', label: 'Text', icon: 'T' },
+  { value: 'file', label: 'Files', icon: '▤' },
+  { value: 'image', label: 'Images', icon: '▧' },
+  ...(hasOther.value ? [{ value: 'other' as const, label: 'Other', icon: '◇' }] : []),
+])
+const emptyMessage = computed(() => {
+  if (filtersActive.value) return 'No entries match these filters'
+  if (query.value) return 'No matching entries'
+  return 'Clipboard history is empty'
+})
 
 /** Hovering wins; with the mouse away the card follows keyboard selection. */
 const detailIndex = computed(() => (hovered.value >= 0 ? hovered.value : selected.value))
@@ -208,6 +226,8 @@ function rowDescription(item: store.Item): string {
   parts.push(
     item.kind === 'image'
       ? `Image, ${item.imageW} by ${item.imageH} pixels`
+      : item.kind === 'file'
+        ? `${item.fileCount ?? item.files?.length ?? 0} file${(item.fileCount ?? item.files?.length ?? 0) === 1 ? '' : 's'}, ${label(item)}`
       : rowLabel(item, 120),
   )
   if (item.sourceApp) parts.push(`from ${item.sourceApp}`)
@@ -219,7 +239,11 @@ let listRequest = 0
 async function reload(): Promise<void> {
   const request = ++listRequest
   try {
-    const nextItems = await App.List(query.value)
+    const nextItems = await App.List(
+      query.value,
+      contentFilter.value === 'all' ? '' : contentFilter.value,
+      sourceFilter.value,
+    )
     if (request !== listRequest) return
     items.value = nextItems
   } catch (err) {
@@ -231,6 +255,32 @@ async function reload(): Promise<void> {
   if (selected.value >= items.value.length) {
     selected.value = Math.max(0, items.value.length - 1)
   }
+}
+
+async function loadFilterOptions(): Promise<void> {
+  try {
+    const options = await App.GetFilterOptions()
+    const previous = filterSources.value.find((source) => source.id === sourceFilter.value)
+    const next = [...options.sources]
+    if (sourceFilter.value && previous && !next.some((source) => source.id === sourceFilter.value)) {
+      next.push(previous)
+    }
+    filterSources.value = next
+    hasOther.value = options.hasOther
+  } catch {
+    // Filtering remains usable by kind when source metadata cannot be loaded.
+  }
+}
+
+function chooseContentFilter(filter: ContentFilter): void {
+  contentFilter.value = filter
+  focusSearch()
+}
+
+function clearFilters(): void {
+  contentFilter.value = 'all'
+  sourceFilter.value = ''
+  focusSearch()
 }
 
 async function loadSettings(): Promise<void> {
@@ -273,6 +323,8 @@ function focusSearch(): void {
  *  and the list not yet claimed by the keyboard. */
 function resetForOpen(): void {
   query.value = ''
+  contentFilter.value = 'all'
+  sourceFilter.value = ''
   selected.value = 0
   hovered.value = -1
   keyboardNav.value = false
@@ -486,6 +538,17 @@ function searchHasSelection(): boolean {
 }
 
 function onKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && event.target instanceof HTMLSelectElement) {
+    event.preventDefault()
+    focusSearch()
+    if (query.value !== '') query.value = ''
+    else if (filtersActive.value) clearFilters()
+    else void App.HidePopup()
+    return
+  }
+  // The native source menu owns its navigation while it is focused or open.
+  if (event.target instanceof HTMLSelectElement) return
+
   // Numeric accelerators: ⌘1..⌘9 / Ctrl+1..9.
   if (hasPrimary(event) && /^Digit[1-9]$/.test(event.code)) {
     event.preventDefault()
@@ -584,6 +647,8 @@ function onKeydown(event: KeyboardEvent): void {
       // Escape clears an active search first, then closes the popup.
       if (query.value !== '') {
         query.value = ''
+      } else if (filtersActive.value) {
+        clearFilters()
       } else {
         void App.HidePopup()
       }
@@ -591,7 +656,7 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
-watch(query, () => {
+watch([query, contentFilter, sourceFilter], () => {
   selected.value = 0
   hovered.value = -1
   keyboardNav.value = false
@@ -626,6 +691,7 @@ function onScroll(): void {
 
 onMounted(() => {
   void reload()
+  void loadFilterOptions()
   void loadSettings()
   focusSearch()
 
@@ -643,6 +709,7 @@ onMounted(() => {
     EventsOn('history:changed', () => {
       clearItemCache()
       void reload()
+      void loadFilterOptions()
     }),
   )
   disposers.push(
@@ -653,6 +720,7 @@ onMounted(() => {
         // "popup:shown" instead.
         resetForOpen()
         void reload()
+        void loadFilterOptions()
         void loadSettings()
       }
     }),
@@ -700,29 +768,62 @@ onUnmounted(() => {
 
     <div class="panel">
       <header class="header">
-        <span class="brand">Geda</span>
-        <div class="search">
-          <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true">
-            <path
-              d="M6.5 1a5.5 5.5 0 0 1 4.38 8.84l3.64 3.64a.75.75 0 0 1-1.06 1.06l-3.64-3.64A5.5 5.5 0 1 1 6.5 1Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"
-              fill="currentColor"
+        <div class="header-main">
+          <span class="brand">Geda</span>
+          <div class="search">
+            <svg class="search-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M6.5 1a5.5 5.5 0 0 1 4.38 8.84l3.64 3.64a.75.75 0 0 1-1.06 1.06l-3.64-3.64A5.5 5.5 0 1 1 6.5 1Zm0 1.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"
+                fill="currentColor"
+              />
+            </svg>
+            <!-- The field keeps focus while arrow keys drive the list. The active
+                 descendant points at the primary row action; pinning remains a
+                 separate, valid button beside it rather than a nested control. -->
+            <input
+              ref="searchEl"
+              v-model="query"
+              type="text"
+              placeholder="type to search…"
+              spellcheck="false"
+              autocomplete="off"
+              role="searchbox"
+              aria-label="Search clipboard history"
+              aria-controls="geda-history"
+              :aria-activedescendant="empty ? undefined : `geda-row-${selected}`"
             />
-          </svg>
-          <!-- The field keeps focus while arrow keys drive the list. The active
-               descendant points at the primary row action; pinning remains a
-               separate, valid button beside it rather than a nested control. -->
-          <input
-            ref="searchEl"
-            v-model="query"
-            type="text"
-            placeholder="type to search…"
-            spellcheck="false"
-            autocomplete="off"
-            role="searchbox"
-            aria-label="Search clipboard history"
-            aria-controls="geda-history"
-            :aria-activedescendant="empty ? undefined : `geda-row-${selected}`"
-          />
+          </div>
+        </div>
+
+        <div class="filter-bar" aria-label="Filter clipboard history">
+          <div class="kind-filters">
+            <button
+              v-for="filter in kindFilters"
+              :key="filter.value"
+              type="button"
+              class="filter-chip"
+              :class="{ active: contentFilter === filter.value }"
+              :aria-pressed="contentFilter === filter.value"
+              @mousedown="keepSearchFocus"
+              @click="chooseContentFilter(filter.value)"
+            >
+              <span aria-hidden="true">{{ filter.icon }}</span>
+              {{ filter.label }}
+            </button>
+          </div>
+
+          <select
+            v-model="sourceFilter"
+            class="source-filter"
+            aria-label="Filter by source application"
+            title="Filter by source application"
+            @change="focusSearch"
+          >
+            <option value="">All sources</option>
+            <option v-for="source in filterSources" :key="source.id" :value="source.id">
+              {{ source.name }}
+            </option>
+          </select>
         </div>
       </header>
 
@@ -738,7 +839,8 @@ onUnmounted(() => {
         @mouseleave="onListLeave"
       >
         <p v-if="empty" class="empty" role="status">
-          {{ query ? 'No matching entries' : 'Clipboard history is empty' }}
+          <span>{{ emptyMessage }}</span>
+          <button v-if="filtersActive" type="button" @click="clearFilters">Clear filters</button>
         </p>
 
         <div
@@ -778,6 +880,10 @@ onUnmounted(() => {
                 decoding="async"
               />
               <span v-else-if="row.item.kind === 'image'" class="image-placeholder">Image</span>
+              <span v-else-if="row.item.kind === 'file'" class="file-row">
+                <span class="file-row-icon" aria-hidden="true">▤</span>
+                <span class="label">{{ label(row.item) }}</span>
+              </span>
               <span v-else class="label">{{ label(row.item) }}</span>
             </button>
 
@@ -892,9 +998,16 @@ onUnmounted(() => {
 .header {
   flex: none;
   display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px var(--pad-x);
+}
+
+.header-main {
+  display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px var(--pad-x);
+  width: 100%;
 }
 
 .brand {
@@ -937,6 +1050,64 @@ onUnmounted(() => {
   color: var(--fg-faint);
 }
 
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+}
+
+.kind-filters {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 3px;
+  min-width: 165px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.kind-filters::-webkit-scrollbar { display: none; }
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  padding: 3px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: default;
+}
+
+.filter-chip:hover { background: var(--hover-bg); color: var(--fg); }
+
+.filter-chip.active {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--fg);
+}
+
+.source-filter {
+  flex: 0 1 120px;
+  width: 120px;
+  max-width: 120px;
+  min-width: 78px;
+  height: 25px;
+  padding: 2px 17px 2px 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--field-bg);
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+}
+
 .list {
   flex: 1;
   min-height: 0;
@@ -949,6 +1120,19 @@ onUnmounted(() => {
   text-align: center;
   color: var(--fg-faint);
   font-size: 12.5px;
+}
+
+.empty span { display: block; }
+
+.empty button {
+  margin-top: 8px;
+  padding: 3px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  background: var(--field-bg);
+  color: var(--fg-dim);
+  font: inherit;
+  cursor: default;
 }
 
 .virtual-list {
@@ -983,6 +1167,17 @@ onUnmounted(() => {
   text-align: left;
   cursor: default;
 }
+
+.file-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.file-row-icon { flex: none; color: var(--fg-dim); }
+.row-selected .file-row-icon { color: currentColor; opacity: 0.8; }
 
 .row-shell:hover {
   background: var(--hover-bg);
