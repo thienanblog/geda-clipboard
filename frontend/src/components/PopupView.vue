@@ -61,12 +61,12 @@ let errorTimer: number | undefined
 
 const empty = computed(() => items.value.length === 0)
 const filtersActive = computed(() => contentFilter.value !== 'all' || sourceFilter.value !== '')
-const kindFilters = computed<Array<{ value: ContentFilter; label: string; icon: string }>>(() => [
-  { value: 'all', label: 'All', icon: '▦' },
-  { value: 'text', label: 'Text', icon: 'T' },
-  { value: 'file', label: 'Files', icon: '▤' },
-  { value: 'image', label: 'Images', icon: '▧' },
-  ...(hasOther.value ? [{ value: 'other' as const, label: 'Other', icon: '◇' }] : []),
+const kindFilters = computed<Array<{ value: ContentFilter; label: string }>>(() => [
+  { value: 'all', label: 'All' },
+  { value: 'text', label: 'Text' },
+  { value: 'file', label: 'Files' },
+  { value: 'image', label: 'Images' },
+  ...(hasOther.value ? [{ value: 'other' as const, label: 'Other' }] : []),
 ])
 const emptyMessage = computed(() => {
   if (filtersActive.value) return 'No entries match these filters'
@@ -807,7 +807,31 @@ onUnmounted(() => {
               @mousedown="keepSearchFocus"
               @click="chooseContentFilter(filter.value)"
             >
-              <span aria-hidden="true">{{ filter.icon }}</span>
+              <svg class="filter-icon" viewBox="0 0 16 16" aria-hidden="true">
+                <template v-if="filter.value === 'all'">
+                  <rect x="2.25" y="2.25" width="4.25" height="4.25" rx="0.75" />
+                  <rect x="9.5" y="2.25" width="4.25" height="4.25" rx="0.75" />
+                  <rect x="2.25" y="9.5" width="4.25" height="4.25" rx="0.75" />
+                  <rect x="9.5" y="9.5" width="4.25" height="4.25" rx="0.75" />
+                </template>
+                <template v-else-if="filter.value === 'text'">
+                  <path d="M2.5 4h11M2.5 8h8.5M2.5 12h6" />
+                </template>
+                <template v-else-if="filter.value === 'file'">
+                  <path d="M4 1.75h5l3 3V14.25H4z" />
+                  <path d="M9 1.75v3h3M6.25 8h3.5M6.25 10.75h3.5" />
+                </template>
+                <template v-else-if="filter.value === 'image'">
+                  <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+                  <circle cx="5.5" cy="6" r="1" />
+                  <path d="m3.75 12 3.5-3.5 2.25 2 1.5-1.5 2.25 3" />
+                </template>
+                <template v-else>
+                  <circle cx="3.5" cy="8" r="0.85" />
+                  <circle cx="8" cy="8" r="0.85" />
+                  <circle cx="12.5" cy="8" r="0.85" />
+                </template>
+              </svg>
               {{ filter.label }}
             </button>
           </div>
@@ -1072,17 +1096,30 @@ onUnmounted(() => {
 .filter-chip {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   flex: none;
-  padding: 3px 4px;
+  padding: 3px 5px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--fg-dim);
   font: inherit;
-  font-size: 10.5px;
+  font-size: 11.5px;
   cursor: default;
 }
+
+.filter-icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.filter-icon circle[r="0.85"] { fill: currentColor; stroke: none; }
 
 .filter-chip:hover { background: var(--hover-bg); color: var(--fg); }
 
@@ -1104,8 +1141,26 @@ onUnmounted(() => {
   background: var(--field-bg);
   color: var(--fg-dim);
   font: inherit;
-  font-size: 10.5px;
+  font-size: 11.5px;
   text-overflow: ellipsis;
+}
+
+/* Keep every type visible when the source menu leaves too little room for the
+   enlarged icon-and-label chips. The filter scroller intentionally hides its
+   scrollbar, so clipping here would otherwise make Images unreachable. */
+@media (max-width: 404px) {
+  .filter-bar { flex-wrap: wrap; }
+
+  .kind-filters {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .source-filter {
+    flex-basis: 100%;
+    width: 100%;
+    max-width: none;
+  }
 }
 
 .list {

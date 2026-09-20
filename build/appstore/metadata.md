@@ -118,12 +118,13 @@ For the first submission this field is not shown. From the second version on,
 paste that release's section from `CHANGELOG.md`, rewritten for users rather
 than for the repository.
 
-For version 0.13.0:
+For version 0.13.1, including the 0.13.0 changes it corrects:
 
 ```
 • Filter clipboard history by text, files, images, or the application each entry came from
 • Copy files and folders from Finder into history, including ordered multi-file groups, and place them back on the clipboard later
 • File entries show group size, metadata, and a clear warning when an original item has moved or been deleted
+• Filter controls now use clearer icons and larger labels, and remain fully visible in narrow popups
 ```
 
 ## 8. App Privacy
