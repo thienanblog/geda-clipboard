@@ -100,6 +100,29 @@ func AppIconPNG(bundleID string, px int) []byte { return appIconPNG(bundleID, px
 // Call this before showing the popup, which necessarily steals focus.
 func RememberFrontmost() { rememberFrontmost() }
 
+// FocusGuard belongs to one popup dismissal. On macOS it also records the
+// mouse-down counter, so a click into another window of the same application
+// cannot redirect a delayed paste there.
+type FocusGuard struct{ mouseDownCount uint64 }
+
+// CaptureFocusGuard succeeds only while Geda still owns focus and the previous
+// target exists. It runs before hiding the popup; after hiding, the OS may
+// activate the target without a user click.
+func CaptureFocusGuard() (FocusGuard, bool) {
+	before := mouseDownCount()
+	if !canBeginFocusReturn() {
+		return FocusGuard{}, false
+	}
+	after := mouseDownCount()
+	return FocusGuard{mouseDownCount: after}, before == after
+}
+
+// CanRestore reports whether focus is still on Geda or its remembered target
+// and no mouse button has been pressed since this popup closed.
+func (guard FocusGuard) CanRestore() bool {
+	return mouseDownCount() == guard.mouseDownCount && canRestoreFocus()
+}
+
 // RestoreFocus brings the app captured by RememberFrontmost back to the front,
 // reporting whether it got there. It needs no permission on either platform,
 // which is what makes it the fallback when Paste is unavailable: the entry is
@@ -117,7 +140,7 @@ func PasteSupported() bool { return pasteSupported() }
 // Paste refocuses the app captured by RememberFrontmost and sends the paste
 // keystroke to it. Returns ErrPasteUnsupported when the build has no keystroke
 // path, and ErrNoPastePermission when the OS withholds permission for one.
-func Paste() error { return paste() }
+func Paste(guard FocusGuard) error { return paste(guard) }
 
 // ErrNoPastePermission reports that the OS withholds permission to synthesise
 // the paste keystroke. Only macOS gates this, behind Accessibility; the

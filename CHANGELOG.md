@@ -9,6 +9,15 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-23
+
+### Changed
+
+- **Closing the popup returns focus to the application you were using.** This
+  includes choosing an entry in copy-only mode, pressing Esc, and toggling the
+  popup off. Clicking another window leaves focus there instead; an automatic
+  paste is cancelled if another click occurs while the popup is closing.
+
 ## [0.13.1] - 2026-09-20
 
 ### Fixed
@@ -441,7 +450,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.0...v0.12.1

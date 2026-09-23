@@ -18,7 +18,7 @@ package clipboard
 
 func pasteSupported() bool { return false }
 
-func paste() error { return ErrPasteUnsupported }
+func paste(FocusGuard) error { return ErrPasteUnsupported }
 
 func hasPastePermission(bool) bool { return false }
 

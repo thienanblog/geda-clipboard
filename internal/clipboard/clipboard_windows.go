@@ -414,6 +414,40 @@ func rememberFrontmost() {
 	rememberMu.Unlock()
 }
 
+func canBeginFocusReturn() bool {
+	rememberMu.Lock()
+	target := rememberedWindow
+	rememberMu.Unlock()
+	if target == 0 {
+		return false
+	}
+	foreground, _, _ := procGetForegroundWindow.Call()
+	var pid uint32
+	procGetWindowThreadProcessId.Call(foreground, uintptr(unsafe.Pointer(&pid)))
+	return pid == uint32(windows.Getpid())
+}
+
+// Windows tracks the original HWND, so another window of the same process is
+// already rejected by canRestoreFocus without a global mouse counter.
+func mouseDownCount() uint64 { return 0 }
+
+func canRestoreFocus() bool {
+	rememberMu.Lock()
+	target := rememberedWindow
+	rememberMu.Unlock()
+	if target == 0 {
+		return false
+	}
+
+	foreground, _, _ := procGetForegroundWindow.Call()
+	if foreground == target {
+		return true
+	}
+	var pid uint32
+	procGetWindowThreadProcessId.Call(foreground, uintptr(unsafe.Pointer(&pid)))
+	return pid == uint32(windows.Getpid())
+}
+
 // Virtual key codes and SendInput structures.
 const (
 	vkControl = 0x11
@@ -475,7 +509,10 @@ func sendKey(vk uint16, keyUp bool) bool {
 	return sent == 1
 }
 
-func paste() error {
+func paste(guard FocusGuard) error {
+	if !guard.CanRestore() {
+		return fmt.Errorf("focus changed before paste")
+	}
 	rememberMu.Lock()
 	target := rememberedWindow
 	rememberMu.Unlock()
@@ -490,6 +527,9 @@ func paste() error {
 		if !waitForForeground(target, 400*time.Millisecond) {
 			return fmt.Errorf("could not focus the target window")
 		}
+	}
+	if !guard.CanRestore() {
+		return fmt.Errorf("focus changed before paste")
 	}
 
 	// Ctrl down, V down, V up, Ctrl up.

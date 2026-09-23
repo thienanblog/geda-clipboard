@@ -42,6 +42,9 @@ were working in.
   losing pinned content. Pinned clearing remains available as an opt-in.
 - **Paste back into the previous app**: the app you came from is remembered
   before the popup steals focus, then refocused and sent the paste keystroke.
+- **Focus returns after closing the popup**: choosing an item, pressing Esc, or
+  toggling the popup off returns to the previous app. Clicking into another
+  window leaves focus there.
 - **Privacy** — honours the conventions password managers use to opt out
   (`org.nspasteboard.ConcealedType` on macOS,
   `ExcludeClipboardContentFromMonitorProcessing` on Windows), plus a per-app

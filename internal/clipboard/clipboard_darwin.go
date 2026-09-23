@@ -4,7 +4,7 @@ package clipboard
 
 /*
 #cgo CFLAGS: -x objective-c -Wno-deprecated-declarations
-#cgo LDFLAGS: -framework Cocoa
+#cgo LDFLAGS: -framework Cocoa -framework CoreGraphics
 #include <stdlib.h>
 #include "clipboard_darwin.h"
 */
@@ -165,6 +165,18 @@ func appIconPNG(bundleID string, px int) []byte {
 
 func rememberFrontmost() {
 	C.gedaRememberFrontmost()
+}
+
+func canBeginFocusReturn() bool {
+	return C.gedaCanBeginFocusReturn() != 0
+}
+
+func mouseDownCount() uint64 {
+	return uint64(C.gedaMouseDownCount())
+}
+
+func canRestoreFocus() bool {
+	return C.gedaCanRestoreFocus() != 0
 }
 
 func restoreFocus() bool {

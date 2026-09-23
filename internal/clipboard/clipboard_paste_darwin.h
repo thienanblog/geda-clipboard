@@ -1,6 +1,8 @@
 #ifndef GEDA_CLIPBOARD_PASTE_DARWIN_H
 #define GEDA_CLIPBOARD_PASTE_DARWIN_H
 
+#include <stdint.h>
+
 // The synthetic-keystroke paste path. Everything here needs Accessibility
 // permission, which is why the whole file is compiled only into builds made
 // with the axpaste tag. The Mac App Store build is made without it: guideline
@@ -8,8 +10,9 @@
 // inspects the shipped binary rather than the source.
 
 // Sends the paste keystroke to the remembered application. Returns 0 on
-// success and -1 when Accessibility permission is missing.
-int gedaPaste(void);
+// success, -1 when Accessibility permission is missing, and -2 when the
+// remembered application could not safely receive the keystroke.
+int gedaPaste(uint64_t expectedMouseDownCount);
 
 // Reports whether this process is trusted for Accessibility. When prompt is
 // non-zero macOS may show its one-time grant dialog.

@@ -162,3 +162,44 @@ func TestPopupBlurIgnoresWindowsWebViewFocusHandoff(t *testing.T) {
 		t.Fatal("settings hid when the window lost focus")
 	}
 }
+
+func TestPopupCloseFocusAction(t *testing.T) {
+	tests := []struct {
+		name           string
+		reason         popupCloseReason
+		pasteBack      bool
+		pasteSupported bool
+		want           popupFocusAction
+	}{
+		{"escape or hotkey", popupCloseRequested, false, true, popupFocusRestore},
+		{"outside click", popupCloseBlurred, true, true, popupFocusNone},
+		{"select copy only", popupCloseSelected, false, true, popupFocusRestore},
+		{"select with paste", popupCloseSelected, true, true, popupFocusPaste},
+		{"select without paste support", popupCloseSelected, true, false, popupFocusRestore},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := focusActionForClose(tt.reason, tt.pasteBack, tt.pasteSupported); got != tt.want {
+				t.Errorf("focus action = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPopupReturnStopsAfterReopenOrSettings(t *testing.T) {
+	a := &App{view: ViewPopup, popupEpoch: 2}
+	if !a.popupStillClosed(2) {
+		t.Fatal("current closed popup cannot finish its focus action")
+	}
+	a.visible = true
+	a.view = ViewSettings
+	if a.popupStillClosed(2) {
+		t.Fatal("settings could lose focus to an earlier popup close")
+	}
+	a.visible = false
+	a.view = ViewPopup
+	a.popupEpoch++
+	if a.popupStillClosed(2) {
+		t.Fatal("reopened popup could lose focus to an earlier close")
+	}
+}
