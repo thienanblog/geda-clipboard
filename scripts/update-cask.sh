@@ -42,16 +42,15 @@ if [ ! -d "$tap_dir/.git" ]; then
 fi
 
 echo "==> Fetching $archive from the v$version release"
-# A directory of its own, thrown away on exit: gh release download refuses to
-# overwrite, and hashing whatever an earlier run left behind is exactly the
-# mistake this script exists to avoid.
+# Download the public release URL itself. GitHub can list newly uploaded assets
+# through its REST API while gh release download still reports none, which
+# otherwise leaves the cask behind after a successful release.
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
-gh release download "v$version" \
-  --repo "$slug" \
-  --pattern "$archive" \
-  --dir "$workdir"
+curl --fail --location --silent --show-error --retry 3 \
+  --output "$workdir/$archive" \
+  "https://github.com/$slug/releases/download/v$version/$archive"
 
 # macOS ships shasum and no sha256sum; a Linux runner is the other way round
 # often enough that picking one and hoping turns a release into a failed job at
