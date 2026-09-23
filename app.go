@@ -83,6 +83,32 @@ const (
 	ViewWelcome  View = "welcome"
 )
 
+type popupCloseReason uint8
+
+const (
+	popupCloseRequested popupCloseReason = iota
+	popupCloseBlurred
+	popupCloseSelected
+)
+
+type popupFocusAction uint8
+
+const (
+	popupFocusNone popupFocusAction = iota
+	popupFocusRestore
+	popupFocusPaste
+)
+
+func focusActionForClose(reason popupCloseReason, pasteBack, pasteSupported bool) popupFocusAction {
+	if reason == popupCloseBlurred {
+		return popupFocusNone
+	}
+	if reason == popupCloseSelected && pasteBack && pasteSupported {
+		return popupFocusPaste
+	}
+	return popupFocusRestore
+}
+
 // App is the Wails-bound application object. Every exported method is callable
 // from the frontend.
 type App struct {
@@ -97,11 +123,12 @@ type App struct {
 	watcher  *clipboard.Watcher
 	hotkeys  *hotkeys.Manager
 
-	mu        sync.Mutex
-	visible   bool
-	view      View
-	anchor    tray.Anchor
-	iconCache map[string]string
+	mu         sync.Mutex
+	visible    bool
+	view       View
+	popupEpoch uint64
+	anchor     tray.Anchor
+	iconCache  map[string]string
 
 	// hotkeyErr holds why the shortcut is not registered. A shortcut is the
 	// only way into a menu bar app for most users, so a failure that only
@@ -500,6 +527,7 @@ func (a *App) showPopupAt(anchor tray.Anchor) {
 	a.mu.Lock()
 	a.view = ViewPopup
 	a.visible = true
+	a.popupEpoch++
 	if anchor.Work.W != 0 {
 		a.anchor = anchor
 	} else {
@@ -631,13 +659,30 @@ func releaseMemory() {
 	}()
 }
 
-// HidePopup hides the window, whichever view it is showing, and resets it to
-// the list so the next show starts from the popup.
+// HidePopup handles a deliberate close from the shortcut, tray or frontend.
+// It returns focus only when the popup was showing and the user has not moved
+// into a different window.
 func (a *App) HidePopup() {
+	action, epoch, guard := a.closePopup(popupCloseRequested, false)
+	if action == popupFocusRestore {
+		a.restoreFocusAfterClose(epoch, guard)
+	}
+}
+
+// closePopup hides whichever view is showing and resets it to the list. Blur
+// and selection use the same state transition but decide focus differently.
+func (a *App) closePopup(reason popupCloseReason, pasteBack bool) (popupFocusAction, uint64, clipboard.FocusGuard) {
 	if a.ctx == nil {
-		return
+		return popupFocusNone, 0, clipboard.FocusGuard{}
+	}
+	var guard clipboard.FocusGuard
+	canRestore := false
+	if reason != popupCloseBlurred {
+		guard, canRestore = clipboard.CaptureFocusGuard()
 	}
 	a.mu.Lock()
+	wasPopup := a.visible && a.view == ViewPopup
+	epoch := a.popupEpoch
 	a.visible = false
 	wasNonPopup := a.view != ViewPopup
 	a.view = ViewPopup
@@ -654,6 +699,30 @@ func (a *App) HidePopup() {
 	if wasNonPopup {
 		wruntime.EventsEmit(a.ctx, "view:changed", string(ViewPopup))
 	}
+	if !wasPopup || !canRestore {
+		return popupFocusNone, epoch, guard
+	}
+	return focusActionForClose(reason, pasteBack, clipboard.PasteSupported()), epoch, guard
+}
+
+func (a *App) popupStillClosed(epoch uint64) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.popupEpoch == epoch && !a.visible
+}
+
+func (a *App) canFinishPopupAction(epoch uint64, guard clipboard.FocusGuard) bool {
+	return a.popupStillClosed(epoch) && guard.CanRestore()
+}
+
+func (a *App) restoreFocusAfterClose(epoch uint64, guard clipboard.FocusGuard) bool {
+	// Wails hides the window asynchronously; let it release keyboard focus
+	// before activating the target, and respect any intervening outside click.
+	time.Sleep(80 * time.Millisecond)
+	if !a.canFinishPopupAction(epoch, guard) {
+		return false
+	}
+	return clipboard.RestoreFocus()
 }
 
 // OnWindowBlur is called by the frontend when the window loses focus. The popup
@@ -666,7 +735,7 @@ func (a *App) OnWindowBlur() {
 	foreground := window.IsForeground()
 
 	if shouldHideOnBlur(visiblePopup, foreground) {
-		a.HidePopup()
+		a.closePopup(popupCloseBlurred, false)
 		return
 	}
 
@@ -851,35 +920,42 @@ func (a *App) use(id string, pasteBack bool) error {
 		a.watcher.Ignore(change)
 	}
 
-	// Hide first: the popup holds focus, and the paste needs to land in the
-	// user's app.
-	a.HidePopup()
+	// Hide first: the popup holds focus, and a paste or focus restore belongs
+	// only to this popup session. An outside click may already have closed it.
+	action, epoch, guard := a.closePopup(popupCloseSelected, pasteBack)
 
 	cfg := a.settings.Get()
 
-	if !pasteBack {
+	if action != popupFocusPaste {
+		if action == popupFocusRestore {
+			a.restoreFocusAfterClose(epoch, guard)
+		}
 		if cfg.NotifyOnPaste {
-			a.notifyUsed(item, "Copied to clipboard", "")
+			subtitle := ""
+			if pasteBack {
+				subtitle = "Press " + pasteChord() + " to paste"
+			}
+			a.notifyUsed(item, "Copied to clipboard", subtitle)
 		}
 		return nil
 	}
 
-	// A build with no keystroke path still puts the user back where they were
-	// working, so the entry is one shortcut away. Reporting a failure here
-	// instead would name a permission this build deliberately cannot ask for.
-	if !clipboard.PasteSupported() {
-		time.Sleep(80 * time.Millisecond)
-		clipboard.RestoreFocus()
+	// Give the window a moment to actually give up focus. A click elsewhere or
+	// a newly opened popup during this delay cancels the pending paste.
+	time.Sleep(80 * time.Millisecond)
+	if !a.canFinishPopupAction(epoch, guard) {
 		if cfg.NotifyOnPaste {
 			a.notifyUsed(item, "Copied to clipboard", "Press "+pasteChord()+" to paste")
 		}
 		return nil
 	}
 
-	// Give the window a moment to actually give up focus.
-	time.Sleep(80 * time.Millisecond)
-
-	if err := clipboard.Paste(); err != nil {
+	if err := clipboard.Paste(guard); err != nil {
+		// The permission check in the paste path can fail before it activates
+		// the old app. Return focus so a manual paste still has a target.
+		if a.canFinishPopupAction(epoch, guard) {
+			clipboard.RestoreFocus()
+		}
 		// Content is on the clipboard even when the keystroke could not be
 		// sent, so report the shortfall rather than failing silently.
 		notify.Send(notify.Notification{

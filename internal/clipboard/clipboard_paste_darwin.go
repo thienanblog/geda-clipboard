@@ -17,9 +17,12 @@ import "errors"
 
 func pasteSupported() bool { return true }
 
-func paste() error {
-	if rc := C.gedaPaste(); rc == -1 {
+func paste(guard FocusGuard) error {
+	switch C.gedaPaste(C.uint64_t(guard.mouseDownCount)) {
+	case -1:
 		return ErrNoPastePermission
+	case -2:
+		return errors.New("could not focus the target application")
 	}
 	return nil
 }

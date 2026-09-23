@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#import <CoreGraphics/CoreGraphics.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -425,6 +426,51 @@ void gedaRememberFrontmost(void) {
             return;
         }
         gRememberedPID = [app processIdentifier];
+    }
+}
+
+int gedaCanBeginFocusReturn(void) {
+    @autoreleasepool {
+        if (gRememberedPID == 0 ||
+            [NSRunningApplication runningApplicationWithProcessIdentifier:gRememberedPID] == nil) {
+            return 0;
+        }
+        NSRunningApplication *frontmost = [[NSWorkspace sharedWorkspace] frontmostApplication];
+        return frontmost != nil &&
+               [frontmost processIdentifier] == [[NSRunningApplication currentApplication] processIdentifier];
+    }
+}
+
+uint64_t gedaMouseDownCount(void) {
+    CGEventSourceStateID state = kCGEventSourceStateCombinedSessionState;
+    return (uint64_t)CGEventSourceCounterForEventType(state, kCGEventLeftMouseDown) +
+           (uint64_t)CGEventSourceCounterForEventType(state, kCGEventRightMouseDown) +
+           (uint64_t)CGEventSourceCounterForEventType(state, kCGEventOtherMouseDown);
+}
+
+int gedaCanRestoreFocus(void) {
+    @autoreleasepool {
+        if (gRememberedPID == 0 ||
+            [NSRunningApplication runningApplicationWithProcessIdentifier:gRememberedPID] == nil) {
+            return 0;
+        }
+        NSRunningApplication *frontmost = [[NSWorkspace sharedWorkspace] frontmostApplication];
+        if (frontmost == nil) {
+            return 0;
+        }
+        pid_t pid = [frontmost processIdentifier];
+        return pid == [[NSRunningApplication currentApplication] processIdentifier] ||
+               pid == gRememberedPID;
+    }
+}
+
+int gedaRememberedIsFrontmost(void) {
+    @autoreleasepool {
+        if (gRememberedPID == 0) {
+            return 0;
+        }
+        NSRunningApplication *frontmost = [[NSWorkspace sharedWorkspace] frontmostApplication];
+        return frontmost != nil && [frontmost processIdentifier] == gRememberedPID;
     }
 }
 

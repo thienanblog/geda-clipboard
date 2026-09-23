@@ -17,7 +17,7 @@ func TestUntaggedBuildCannotPaste(t *testing.T) {
 	if PasteSupported() {
 		t.Fatal("a build without the axpaste tag reports that it can paste")
 	}
-	if err := Paste(); !errors.Is(err, ErrPasteUnsupported) {
+	if err := Paste(FocusGuard{}); !errors.Is(err, ErrPasteUnsupported) {
 		t.Errorf("Paste() = %v, want ErrPasteUnsupported", err)
 	}
 	if HasPastePermission(true) {

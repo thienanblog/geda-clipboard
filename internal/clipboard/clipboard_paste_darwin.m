@@ -49,18 +49,26 @@ static void sendPasteKeystroke(void) {
     if (source != NULL) CFRelease(source);
 }
 
-int gedaPaste(void) {
+int gedaPaste(uint64_t expectedMouseDownCount) {
     @autoreleasepool {
         if (!AXIsProcessTrusted()) {
             return -1; // caller surfaces the permission requirement
         }
 
-        if (gedaActivateRemembered()) {
-            // The target reports itself active a moment before it is ready to
-            // take key events; sending the keystroke too early loses it.
-            usleep(40 * 1000);
+        // A click into another app while the popup is closing cancels the
+        // paste. Never bring the old target back over that explicit choice.
+        if (gedaMouseDownCount() != expectedMouseDownCount ||
+            !gedaCanRestoreFocus() || !gedaActivateRemembered()) {
+            return -2;
         }
 
+        // The target reports itself active a moment before it is ready to
+        // take key events; sending the keystroke too early loses it.
+        usleep(40 * 1000);
+        if (gedaMouseDownCount() != expectedMouseDownCount ||
+            !gedaRememberedIsFrontmost()) {
+            return -2;
+        }
         sendPasteKeystroke();
         return 0;
     }

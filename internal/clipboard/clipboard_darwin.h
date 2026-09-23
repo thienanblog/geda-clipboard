@@ -1,6 +1,8 @@
 #ifndef GEDA_CLIPBOARD_DARWIN_H
 #define GEDA_CLIPBOARD_DARWIN_H
 
+#include <stdint.h>
+
 // All returned char*/void* buffers are malloc'd and owned by the caller.
 //
 // Nothing declared here touches Accessibility. The keystroke path lives in
@@ -29,6 +31,20 @@ void gedaFrontmost(char **name, char **bundleID);
 void *gedaAppIconPNG(const char *bundleID, int px, int *outLen);
 
 void gedaRememberFrontmost(void);
+
+// Read before hiding the popup. A previous target must exist and Geda must
+// still be frontmost; a click elsewhere must not start a new focus return.
+int gedaCanBeginFocusReturn(void);
+
+// Window Server mouse-down count, used to cancel a delayed action after a
+// click even when the destination shares the remembered application's PID.
+uint64_t gedaMouseDownCount(void);
+
+// True only while our app or the remembered app is frontmost.
+int gedaCanRestoreFocus(void);
+
+// True only while the remembered app can receive a paste keystroke.
+int gedaRememberedIsFrontmost(void);
 
 // Refocuses the remembered application. Returns 1 when it holds focus.
 int gedaActivateRemembered(void);
