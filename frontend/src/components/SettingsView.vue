@@ -1,24 +1,14 @@
 <script lang="ts" setup>
 /** Tabbed preferences and About. Changes are saved as soon as they are made,
  *  which is what a menu bar utility should do -- there is no OK/Cancel. */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import type { main, settings, store } from '../../wailsjs/go/models'
 import * as App from '../../wailsjs/go/main/App'
 import { BrowserOpenURL, EventsOn } from '../../wailsjs/runtime/runtime'
 import { rowLabel } from '../lib/format'
 import { eventToSpec, formatHotkey } from '../lib/keys'
+import { searchSettings, settingsTabs, type SettingLink, type SettingsTab } from '../lib/settingsSearch'
 import StatisticsView from './StatisticsView.vue'
-
-type SettingsTab = 'general' | 'clipboard' | 'pinned' | 'privacy' | 'statistics' | 'about'
-
-const settingsTabs: Array<{ value: SettingsTab; label: string }> = [
-  { value: 'general', label: 'General' },
-  { value: 'clipboard', label: 'Clipboard' },
-  { value: 'pinned', label: 'Pinned' },
-  { value: 'privacy', label: 'Privacy' },
-  { value: 'statistics', label: 'Statistics' },
-  { value: 'about', label: 'About' },
-]
 
 const privacyURL = 'https://thienanblog.github.io/geda-clipboard/privacy.html'
 const supportURL = 'https://thienanblog.github.io/geda-clipboard/support.html'
@@ -33,6 +23,45 @@ const emit = defineEmits<{
   (event: 'close'): void
   (event: 'tab', value: SettingsTab): void
 }>()
+
+const searchQuery = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
+const settingsBody = ref<HTMLElement | null>(null)
+const highlightedSetting = ref('')
+const searching = computed(() => searchQuery.value.trim().length > 0)
+const searchResults = computed(() => searchSettings(searchQuery.value, {
+  isMac: isMac.value,
+  pasteSupported: pasteSupported.value,
+  canPaste: canPaste.value,
+  canUpdate: canUpdate.value,
+}))
+
+function selectTab(tab: SettingsTab): void {
+  searchQuery.value = ''
+  highlightedSetting.value = ''
+  capturingHotkey.value = false
+  emit('tab', tab)
+  void nextTick(() => settingsBody.value?.scrollTo(0, 0))
+}
+
+async function revealSetting(item: SettingLink): Promise<void> {
+  selectTab(item.tab)
+  highlightedSetting.value = item.id
+  await nextTick()
+  const target = settingsBody.value?.querySelector<HTMLElement>(`[data-setting="${item.id}"]`)
+  if (!target) return
+  target.scrollIntoView({ block: 'center' })
+  // A section can contain unrelated toggles before its advertised action.
+  const control = target.querySelector<HTMLElement>('[data-search-focus]')
+    ?? target.querySelector<HTMLElement>('input, select, textarea, button')
+    ?? target
+  control.focus({ preventScroll: true })
+}
+
+function clearSearch(): void {
+  searchQuery.value = ''
+  searchInput.value?.focus()
+}
 
 const cfg = ref<settings.Settings | null>(null)
 const status = ref('')
@@ -305,6 +334,7 @@ function onIgnoredInput(): void {
 }
 
 async function resetDefaults(): Promise<void> {
+  if (!window.confirm('Reset all preferences to their defaults? Clipboard history and pins will be kept.')) return
   cfg.value = await App.DefaultSettings()
   await save()
 }
@@ -374,8 +404,18 @@ function onKeydown(event: KeyboardEvent): void {
     onHotkeyKeydown(event)
     return
   }
+  if ((isMac.value ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === 'f') {
+    event.preventDefault()
+    searchInput.value?.focus()
+    searchInput.value?.select()
+    return
+  }
   if (event.key === 'Escape') {
     event.preventDefault()
+    if (searchQuery.value) {
+      clearSearch()
+      return
+    }
     emit('close')
   }
 }
@@ -402,52 +442,92 @@ onUnmounted(() => {
 <template>
   <div class="panel">
     <header class="header">
-      <nav class="tabs">
+      <div class="header-top">
+        <h1 class="title">Preferences</h1>
+        <div class="settings-search" role="search" aria-label="Preferences">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
+          <input
+            ref="searchInput"
+            v-model="searchQuery"
+            type="search"
+            aria-label="Search settings"
+            placeholder="Search settings…"
+            :title="`${isMac ? '⌘' : 'Ctrl+'}F to search settings`"
+            autocomplete="off"
+            spellcheck="false"
+            @focus="capturingHotkey = false"
+            @keydown.enter.prevent="searchResults[0] && revealSetting(searchResults[0])"
+          />
+          <button v-if="searchQuery" type="button" aria-label="Clear settings search" @click="clearSearch">×</button>
+          <kbd v-else aria-hidden="true">{{ isMac ? '⌘F' : 'Ctrl+F' }}</kbd>
+        </div>
+        <button class="close" type="button" title="Close" @click="emit('close')">Done</button>
+      </div>
+      <nav class="tabs" aria-label="Preferences categories">
         <button
           v-for="item in settingsTabs"
           :key="item.value"
           class="tab"
-          :class="{ active: tab === item.value }"
+          :class="{ active: !searching && tab === item.value }"
+          :aria-current="!searching && tab === item.value ? 'page' : undefined"
           type="button"
-          @click="emit('tab', item.value)"
+          @click="selectTab(item.value)"
         >
           {{ item.label }}
         </button>
       </nav>
-
-      <div class="header-right">
-        <span v-if="status" class="status">{{ status }}</span>
-        <button class="close" type="button" title="Close" @click="emit('close')">Done</button>
-      </div>
+      <span v-if="status" class="status" role="status">{{ status }}</span>
     </header>
 
     <div class="hairline" />
 
-    <div class="body scroll">
+    <div ref="settingsBody" class="body scroll">
+      <div v-if="searching" class="search-results">
+        <p class="results-summary" role="status">{{ searchResults.length }} {{ searchResults.length === 1 ? 'result' : 'results' }} across all preferences</p>
+        <ul v-if="searchResults.length" class="results-list">
+          <li v-for="item in searchResults" :key="item.id">
+            <button class="search-result" type="button" @click="revealSetting(item)">
+              <span class="result-category">{{ settingsTabs.find((tab) => tab.value === item.tab)?.label }}</span>
+              <strong>{{ item.label }}</strong>
+              <span class="result-description">{{ item.description }}</span>
+            </button>
+          </li>
+        </ul>
+        <div v-else class="empty-search">
+          <h2>No settings found</h2>
+          <p>Try “notifications”, “shortcut”, “history” or “privacy”.</p>
+          <button class="btn" type="button" @click="clearSearch">Clear search</button>
+        </div>
+      </div>
+      <div v-show="!searching" class="settings-content">
       <template v-if="tab === 'general' && cfg">
-        <section>
+        <section data-setting="notification-test" :class="{ 'setting-highlight': highlightedSetting === 'notification-test' }" tabindex="-1">
           <h2>Notifications</h2>
           <p v-if="notifyBlocked" class="hint warn">{{ notifyMessage }}</p>
           <div v-if="notifyBlocked" class="btn-row">
-            <button class="btn" type="button" @click="fixNotifications">
+            <button data-search-focus class="btn" type="button" @click="fixNotifications">
               {{ notifyStatus === 'denied' ? 'Open notification settings…' : 'Allow notifications' }}
             </button>
           </div>
-          <label class="check">
+          <label data-setting="notify-copy" :class="{ 'setting-highlight': highlightedSetting === 'notify-copy' }" class="check">
             <input v-model="cfg.notifyOnCopy" type="checkbox" @change="save" />
-            <span>Notify when something is copied<em>Shows the source app and a preview.</em></span>
+            <span>Notify when something is copied<em>Shows the source app, with optional content preview.</em></span>
           </label>
-          <label class="check">
+          <label data-setting="notify-paste" :class="{ 'setting-highlight': highlightedSetting === 'notify-paste' }" class="check">
             <input v-model="cfg.notifyOnPaste" type="checkbox" @change="save" />
             <span v-if="pasteSupported">Notify when an entry is pasted<em>Confirms which app received the paste.</em></span>
             <span v-else>Notify when an entry is reused<em>Confirms the entry is ready to paste.</em></span>
           </label>
+          <label data-setting="notification-preview" :class="{ 'setting-highlight': highlightedSetting === 'notification-preview' }" class="check">
+            <input v-model="cfg.notificationPreview" type="checkbox" @change="save" />
+            <span>Show content in notifications<em>When off, hides text, file names and image details. App names remain visible.</em></span>
+          </label>
           <div class="btn-row">
-            <button class="btn" type="button" @click="sendTest">Send a test notification</button>
+            <button data-search-focus class="btn" type="button" @click="sendTest">Send a test notification</button>
           </div>
         </section>
 
-        <section>
+        <section data-setting="hotkey" :class="{ 'setting-highlight': highlightedSetting === 'hotkey' }" tabindex="-1">
           <h2>Shortcut</h2>
           <div class="field">
             <span class="field-label">Toggle the popup</span>
@@ -464,11 +544,11 @@ onUnmounted(() => {
 
         <section>
           <h2>Application</h2>
-          <label class="check">
+          <label data-setting="launch" :class="{ 'setting-highlight': highlightedSetting === 'launch' }" class="check">
             <input v-model="cfg.launchAtLogin" type="checkbox" @change="save" />
             <span>Launch at login</span>
           </label>
-          <label v-if="isMac" class="check">
+          <label data-setting="dock" :class="{ 'setting-highlight': highlightedSetting === 'dock' }" v-if="isMac" class="check">
             <input v-model="cfg.showDockIcon" type="checkbox" @change="save" />
             <span>Show icon in the Dock<em>Off keeps Geda in the menu bar.</em></span>
           </label>
@@ -476,25 +556,25 @@ onUnmounted(() => {
 
         <section>
           <h2>Window</h2>
-          <label class="check">
+          <label data-setting="hover" :class="{ 'setting-highlight': highlightedSetting === 'hover' }" class="check">
             <input v-model="cfg.previewOnHover" type="checkbox" @change="save" />
             <span>Show details when pointing at an entry<em>The card floats beside the popup.</em></span>
           </label>
-          <div class="field">
-            <span class="field-label">Open the popup at</span>
-            <select v-model="cfg.popupPlacement" class="select" @change="save">
+          <div data-setting="placement" :class="{ 'setting-highlight': highlightedSetting === 'placement' }" class="field">
+            <label class="field-label" for="popup-placement">Open the popup at</label>
+            <select id="popup-placement" v-model="cfg.popupPlacement" class="select" @change="save">
               <option value="cursor">The mouse pointer</option>
               <option value="menubar">{{ iconPlacementLabel }}</option>
             </select>
           </div>
-          <div class="field">
+          <div data-setting="size" :class="{ 'setting-highlight': highlightedSetting === 'size' }" class="field">
             <span class="field-label">Popup size</span>
-            <input v-model.number="cfg.popupWidth" class="num" type="number" min="300" max="1600" step="20" @change="onNumberChange('popupWidth')" />
+            <input aria-label="Popup width" v-model.number="cfg.popupWidth" class="num" type="number" min="300" max="1600" step="20" @change="onNumberChange('popupWidth')" />
             <span class="field-suffix">×</span>
-            <input v-model.number="cfg.popupHeight" class="num" type="number" min="240" max="1200" step="20" @change="onNumberChange('popupHeight')" />
+            <input aria-label="Popup height" v-model.number="cfg.popupHeight" class="num" type="number" min="240" max="1200" step="20" @change="onNumberChange('popupHeight')" />
             <span class="field-suffix">px</span>
           </div>
-          <div class="field">
+          <div data-setting="image-size" :class="{ 'setting-highlight': highlightedSetting === 'image-size' }" class="field">
             <label class="field-label" for="image-preview-size">Image preview size</label>
             <select id="image-preview-size" v-model="cfg.imagePreviewSize" class="select" @change="save">
               <option value="compact">Compact</option>
@@ -505,14 +585,14 @@ onUnmounted(() => {
         </section>
 
         <section>
-          <button class="btn subtle" type="button" @click="resetDefaults">Reset all preferences</button>
+          <button data-setting="reset" :class="{ 'setting-highlight': highlightedSetting === 'reset' }" class="btn subtle" type="button" @click="resetDefaults">Reset all preferences</button>
         </section>
       </template>
 
       <template v-else-if="tab === 'clipboard' && cfg">
         <section>
           <h2>Behaviour</h2>
-          <label v-if="pasteSupported" class="check">
+          <label data-setting="paste" :class="{ 'setting-highlight': highlightedSetting === 'paste' }" v-if="pasteSupported" class="check">
             <input v-model="cfg.pasteOnSelect" type="checkbox" @change="save" />
             <span>Paste immediately when an entry is chosen<em>When off, choosing an entry only puts it on the clipboard.</em></span>
           </label>
@@ -520,27 +600,31 @@ onUnmounted(() => {
             Choosing an entry copies it and returns you to the app you were working in,
             so it takes one {{ env?.modifierName ?? '⌘' }}V to paste.
           </p>
-          <label class="check">
+          <label data-setting="capture-images" :class="{ 'setting-highlight': highlightedSetting === 'capture-images' }" class="check">
             <input v-model="cfg.captureImages" type="checkbox" @change="save" />
-            <span>Record images as well as text</span>
+            <span>Record images<em>Include new image copies in history.</em></span>
+          </label>
+          <label data-setting="capture-files" :class="{ 'setting-highlight': highlightedSetting === 'capture-files' }" class="check">
+            <input v-model="cfg.captureFiles" type="checkbox" @change="save" />
+            <span>Record files and folders<em>Stores file references, not file contents. Existing history is kept when turned off.</em></span>
           </label>
         </section>
 
         <section>
           <h2>History</h2>
-          <label class="check">
+          <label data-setting="move-top" :class="{ 'setting-highlight': highlightedSetting === 'move-top' }" class="check">
             <input v-model="cfg.moveToTopOnSelect" type="checkbox" @change="save" />
             <span>Move chosen entries to the top<em>When off, copying or pasting an entry keeps its position. Pinned entries stay above other history, and priority pins keep their order.</em></span>
           </label>
-          <div class="field">
+          <div data-setting="history-limit" :class="{ 'setting-highlight': highlightedSetting === 'history-limit' }" class="field">
             <span class="field-label">Keep at most</span>
-            <input v-model.number="cfg.maxItems" class="num" type="number" min="10" max="2000" step="10" @change="onNumberChange('maxItems')" />
+            <input aria-label="Maximum history entries" v-model.number="cfg.maxItems" class="num" type="number" min="10" max="2000" step="10" @change="onNumberChange('maxItems')" />
             <span class="field-suffix">entries</span>
           </div>
           <p class="hint">Pinned entries are always kept, regardless of this limit.</p>
         </section>
 
-        <section v-if="pasteSupported && !canPaste">
+        <section data-setting="paste-permission" :class="{ 'setting-highlight': highlightedSetting === 'paste-permission' }" tabindex="-1" v-if="pasteSupported && !canPaste">
           <h2>Permission needed</h2>
           <p class="hint warn">
             Pasting automatically requires Accessibility permission. Without it, choosing an
@@ -554,7 +638,7 @@ onUnmounted(() => {
       </template>
 
       <template v-else-if="tab === 'pinned' && cfg">
-        <section>
+        <section data-setting="pin-priority" :class="{ 'setting-highlight': highlightedSetting === 'pin-priority' }" tabindex="-1">
           <h2>Priority</h2>
           <p class="hint pinned-intro">
             Priority entries stay in your chosen order. Everything else pinned remains below
@@ -644,7 +728,7 @@ onUnmounted(() => {
 
         <section>
           <h2>History clearing</h2>
-          <label class="check">
+          <label data-setting="clear-pins" :class="{ 'setting-highlight': highlightedSetting === 'clear-pins' }" class="check">
             <input v-model="cfg.clearPinnedOnHistoryClear" type="checkbox" @change="save" />
             <span>
               Clear pinned entries when clearing history
@@ -657,17 +741,18 @@ onUnmounted(() => {
       <template v-else-if="tab === 'privacy' && cfg">
         <section>
           <h2>Excluded copies</h2>
-          <label class="check">
+          <label data-setting="confidential" :class="{ 'setting-highlight': highlightedSetting === 'confidential' }" class="check">
             <input v-model="cfg.ignoreConcealed" type="checkbox" @change="save" />
             <span>Skip entries marked confidential<em>This is how password managers ask to be excluded.</em></span>
           </label>
-          <label class="check">
+          <label data-setting="transient" :class="{ 'setting-highlight': highlightedSetting === 'transient' }" class="check">
             <input v-model="cfg.ignoreTransient" type="checkbox" @change="save" />
             <span>Skip entries marked temporary by the source app</span>
           </label>
-          <div class="field stacked">
-            <span class="field-label">Never record copies from these apps</span>
+          <div data-setting="ignored-apps" :class="{ 'setting-highlight': highlightedSetting === 'ignored-apps' }" class="field stacked">
+            <label class="field-label" for="ignored-apps">Never record copies from these apps</label>
             <textarea
+              id="ignored-apps"
               v-model="ignoredText"
               rows="5"
               placeholder="One application name per line, e.g.&#10;1Password&#10;Keychain Access"
@@ -677,7 +762,7 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section>
+        <section data-setting="clear-data" :class="{ 'setting-highlight': highlightedSetting === 'clear-data' }" tabindex="-1">
           <h2>Local data</h2>
           <p class="hint">
             Clipboard content and statistics stay on this device. Statistics contain only
@@ -692,13 +777,13 @@ onUnmounted(() => {
         </section>
       </template>
 
-      <StatisticsView v-else-if="tab === 'statistics'" />
+      <div v-else-if="tab === 'statistics'" data-setting="statistics" :class="{ 'setting-highlight': highlightedSetting === 'statistics' }" tabindex="-1"><StatisticsView /></div>
 
       <template v-else-if="tab === 'about'">
-        <div class="about">
+        <div data-setting="about" :class="{ 'setting-highlight': highlightedSetting === 'about' }" tabindex="-1" class="about">
           <h1>Geda Clipboard</h1>
           <p class="version">Version {{ env?.version ?? '—' }}</p>
-          <div v-if="canUpdate" class="btn-row about-actions">
+          <div v-if="canUpdate" data-setting="updates" :class="{ 'setting-highlight': highlightedSetting === 'updates' }" class="btn-row about-actions">
             <button class="btn" type="button" @click="App.CheckForUpdates()">Check for Updates…</button>
           </div>
           <p class="blurb">
@@ -722,22 +807,159 @@ onUnmounted(() => {
           <p class="credit">Inspired by <span class="mono">Maccy</span>, built with Go and Wails.</p>
         </div>
       </template>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.settings-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  width: 290px;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--field-bg);
+  color: var(--fg-dim);
+}
+.settings-search:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.settings-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12.5px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.settings-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+.settings-search button {
+  border: 0;
+  padding: 0 3px;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 16px;
+}
+.settings-search kbd {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: 10px;
+}
+.settings-search svg {
+  flex: none;
+}
+.results-summary {
+  margin: 16px 0 10px;
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.results-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 6px;
+  text-align: left;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--field-bg);
+}
+.search-result:hover {
+  background: var(--hover-bg);
+}
+.search-result strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.result-category {
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+.result-description {
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.empty-search {
+  padding: 55px 12px;
+  text-align: center;
+  color: var(--fg-dim);
+}
+.empty-search h2 {
+  font-size: 15px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--fg);
+}
+.settings-content [data-setting] {
+  scroll-margin: 16px;
+  border-radius: 5px;
+}
+.setting-highlight {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.settings-search input:focus-visible {
+  outline: none;
+}
+@media (max-width: 560px) {
+  .header-top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .settings-search {
+    order: 3;
+    width: 100%;
+  }
+  .close {
+    margin-left: auto;
+  }
+}
+
 .header {
   flex: none;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px var(--pad-x);
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px var(--pad-x) 9px;
 }
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   padding: 2px;
   border-radius: 7px;
@@ -756,12 +978,6 @@ onUnmounted(() => {
 .tab.active {
   background: var(--accent);
   color: var(--accent-fg);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .status {

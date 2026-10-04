@@ -33,6 +33,7 @@ export namespace settings {
 	    maxItems: number;
 	    notifyOnCopy: boolean;
 	    notifyOnPaste: boolean;
+	    notificationPreview: boolean;
 	    pasteOnSelect: boolean;
 	    moveToTopOnSelect: boolean;
 	    hotkey: string;
@@ -42,6 +43,7 @@ export namespace settings {
 	    ignoreConcealed: boolean;
 	    ignoreTransient: boolean;
 	    captureImages: boolean;
+	    captureFiles: boolean;
 	    popupWidth: number;
 	    popupHeight: number;
 	    popupPlacement: string;
@@ -59,6 +61,7 @@ export namespace settings {
 	        this.maxItems = source["maxItems"];
 	        this.notifyOnCopy = source["notifyOnCopy"];
 	        this.notifyOnPaste = source["notifyOnPaste"];
+	        this.notificationPreview = source["notificationPreview"];
 	        this.pasteOnSelect = source["pasteOnSelect"];
 	        this.moveToTopOnSelect = source["moveToTopOnSelect"];
 	        this.hotkey = source["hotkey"];
@@ -68,6 +71,7 @@ export namespace settings {
 	        this.ignoreConcealed = source["ignoreConcealed"];
 	        this.ignoreTransient = source["ignoreTransient"];
 	        this.captureImages = source["captureImages"];
+	        this.captureFiles = source["captureFiles"];
 	        this.popupWidth = source["popupWidth"];
 	        this.popupHeight = source["popupHeight"];
 	        this.popupPlacement = source["popupPlacement"];
