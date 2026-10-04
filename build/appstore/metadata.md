@@ -69,13 +69,15 @@ Geda Clipboard keeps a searchable history of everything you copy, and puts it on
 
 Press ⇧⌘V and the popup opens right where your pointer is, on whichever display it happens to be on. Type to narrow the list and press Return: the entry is on your clipboard and you are back in the app you were working in, one ⌘V from having it there.
 
-It also tells you what it caught. Every copy, and every entry you pick out of the history, posts a notification showing the app it came from and a preview of the content, so you always know what is on your clipboard.
+It also tells you what it caught. Every copy, and every entry you pick out of the history, can post a notification with the app name and an optional content preview. Hide previews to keep clipboard text and file names out of alerts.
 
 FEATURES
 
 • Searchable history of text, images and file groups, filterable by content type or source application
 • The popup opens at the pointer, or under the menu bar icon, whichever you prefer
-• Notifications on copy and on reuse, each one switchable on its own
+• Notifications on copy and on reuse, with optional content previews
+• Search preferences across categories and jump directly to a setting
+• Switch image and file capture independently without deleting existing history
 • Chosen entries move to the top of their history group by default; Preferences can keep their position instead, while manual pin priority stays unchanged
 • Choosing an entry returns you to the app you came from, so pasting is one ⌘V
 • Copying the same thing again bumps the entry you already have and raises its counter, instead of filling the list with duplicates

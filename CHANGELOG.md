@@ -11,6 +11,13 @@ changes and the patch version for fixes.
 
 ### Added
 
+- Preferences now include a header search across categories, with keyboard
+  access and direct navigation to matching controls.
+- File and folder capture can be disabled independently of image capture.
+  Existing entries remain available.
+- Notification content previews can be hidden without disabling copy and reuse
+  alerts. Application names remain visible.
+- Resetting preferences now asks for confirmation and preserves history.
 - Choosing a clipboard entry now moves it to the top of its history group.
   Preferences can keep the existing order instead. Pin priority, source copy
   counts and copy statistics are preserved.

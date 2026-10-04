@@ -41,6 +41,9 @@ type Settings struct {
 	// NotifyOnPaste posts a notification each time an entry is pasted back.
 	NotifyOnPaste bool `json:"notifyOnPaste"`
 
+	// NotificationPreview includes clipboard content in notification bodies.
+	NotificationPreview bool `json:"notificationPreview"`
+
 	// PasteOnSelect pastes into the previously focused app on selection. When
 	// false, selecting an entry only puts it on the clipboard.
 	PasteOnSelect bool `json:"pasteOnSelect"`
@@ -70,6 +73,9 @@ type Settings struct {
 
 	// CaptureImages records images as well as text.
 	CaptureImages bool `json:"captureImages"`
+
+	// CaptureFiles records references to copied files without copying their data.
+	CaptureFiles bool `json:"captureFiles"`
 
 	// PopupWidth/PopupHeight size the visible popup panel in logical pixels.
 	// The window itself is wider when previews are on: it carries a transparent
@@ -106,24 +112,26 @@ const layoutFlyout = 1
 // Defaults returns the settings a fresh install starts with.
 func Defaults() Settings {
 	return Settings{
-		MaxItems:          200,
-		NotifyOnCopy:      true,
-		NotifyOnPaste:     true,
-		PasteOnSelect:     true,
-		MoveToTopOnSelect: true,
-		Hotkey:            defaultHotkey,
-		LaunchAtLogin:     false,
-		ShowDockIcon:      false,
-		IgnoredApps:       []string{},
-		IgnoreConcealed:   true,
-		IgnoreTransient:   true,
-		CaptureImages:     true,
-		PopupWidth:        420,
-		PopupHeight:       520,
-		PopupPlacement:    PlacementCursor,
-		PreviewOnHover:    true,
-		ImagePreviewSize:  PreviewComfortable,
-		LayoutVersion:     layoutFlyout,
+		MaxItems:            200,
+		NotifyOnCopy:        true,
+		NotifyOnPaste:       true,
+		NotificationPreview: true,
+		PasteOnSelect:       true,
+		MoveToTopOnSelect:   true,
+		Hotkey:              defaultHotkey,
+		LaunchAtLogin:       false,
+		ShowDockIcon:        false,
+		IgnoredApps:         []string{},
+		IgnoreConcealed:     true,
+		IgnoreTransient:     true,
+		CaptureImages:       true,
+		CaptureFiles:        true,
+		PopupWidth:          420,
+		PopupHeight:         520,
+		PopupPlacement:      PlacementCursor,
+		PreviewOnHover:      true,
+		ImagePreviewSize:    PreviewComfortable,
+		LayoutVersion:       layoutFlyout,
 	}
 }
 

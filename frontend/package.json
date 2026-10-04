@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:settings": "node --experimental-strip-types --test tests/settingsSearch.test.mjs"
   },
   "dependencies": {
     "vue": "^3.2.37"

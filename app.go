@@ -326,7 +326,8 @@ func (a *App) onClipboardChange(snap clipboard.Snapshot, source clipboard.App) {
 	} else if cfg.IsIgnored(source.Name) {
 		return
 	}
-	if snap.Kind == clipboard.KindImage && !cfg.CaptureImages {
+	if (snap.Kind == clipboard.KindImage && !cfg.CaptureImages) ||
+		(snap.Kind == clipboard.KindFile && !cfg.CaptureFiles) {
 		return
 	}
 
@@ -394,10 +395,7 @@ func (a *App) notifyCopied(item *store.Item, isNew bool) {
 		subtitle = "from " + item.SourceApp
 	}
 
-	body := notify.Summarise(item.Preview(), 120)
-	if item.Kind == store.KindImage {
-		body = fmt.Sprintf("Image · %d × %d", item.ImageW, item.ImageH)
-	}
+	body := notificationBody(item, a.settings.Get().NotificationPreview)
 
 	if err := notify.Send(notify.Notification{
 		Title:    title,
@@ -995,11 +993,20 @@ func pasteChord() string {
 	return "Ctrl+V"
 }
 
-func (a *App) notifyUsed(item *store.Item, title, subtitle string) {
-	body := notify.Summarise(item.Preview(), 120)
-	if item.Kind == store.KindImage {
-		body = fmt.Sprintf("Image · %d × %d", item.ImageW, item.ImageH)
+// Keep both copy and reuse notifications behind the same content preference so
+// disabling previews cannot expose an entry through a different action.
+func notificationBody(item *store.Item, preview bool) string {
+	if !preview {
+		return "Clipboard content hidden"
 	}
+	if item.Kind == store.KindImage {
+		return fmt.Sprintf("Image · %d × %d", item.ImageW, item.ImageH)
+	}
+	return notify.Summarise(item.Preview(), 120)
+}
+
+func (a *App) notifyUsed(item *store.Item, title, subtitle string) {
+	body := notificationBody(item, a.settings.Get().NotificationPreview)
 	if err := notify.Send(notify.Notification{
 		Title:    title,
 		Subtitle: subtitle,

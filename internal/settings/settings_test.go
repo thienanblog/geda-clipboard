@@ -285,3 +285,27 @@ func TestMoveToTopOnSelectDefaultsAndPersistence(t *testing.T) {
 		}
 	}
 }
+
+func TestCaptureAndNotificationPreferencesMigrateAndPersist(t *testing.T) {
+	writeSettingsFile(t, `{"maxItems":200,"layoutVersion":1}`)
+	manager, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := manager.Get()
+	if !cfg.CaptureFiles || !cfg.NotificationPreview {
+		t.Fatal("older settings must preserve file capture and notification previews")
+	}
+	cfg.CaptureFiles = false
+	cfg.NotificationPreview = false
+	if _, err := manager.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.Get(); got.CaptureFiles || got.NotificationPreview {
+		t.Fatal("explicit false preferences must survive reload")
+	}
+}

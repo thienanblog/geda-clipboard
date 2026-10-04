@@ -56,6 +56,10 @@ jobs:
         working-directory: frontend
         run: npx vue-tsc --noEmit
 
+      - name: Test settings search
+        working-directory: frontend
+        run: npm run test:settings
+
   # The platform layers are separate implementations behind build tags, so each
   # host vets, tests and builds its own. Windows in particular has no other
   # coverage: it is not a machine this project is developed on.
