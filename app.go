@@ -925,6 +925,9 @@ func (a *App) use(id string, pasteBack bool) error {
 	action, epoch, guard := a.closePopup(popupCloseSelected, pasteBack)
 
 	cfg := a.settings.Get()
+	if cfg.MoveToTopOnSelect && a.store.MoveToTop(id) {
+		a.emitHistoryChanged()
+	}
 
 	if action != popupFocusPaste {
 		if action == popupFocusRestore {

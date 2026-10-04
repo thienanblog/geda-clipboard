@@ -260,3 +260,28 @@ func TestLoadKeepsWidthChosenUnderTheCurrentLayout(t *testing.T) {
 		t.Errorf("popup width = %d, want 900", got)
 	}
 }
+
+func TestMoveToTopOnSelectDefaultsAndPersistence(t *testing.T) {
+	writeSettingsFile(t, `{"maxItems":200}`)
+	m, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.Get().MoveToTopOnSelect {
+		t.Fatal("legacy settings should default to promoting chosen entries")
+	}
+	for _, enabled := range []bool{false, true} {
+		cfg := m.Get()
+		cfg.MoveToTopOnSelect = enabled
+		if _, err := m.Save(cfg); err != nil {
+			t.Fatal(err)
+		}
+		reloaded, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.Get().MoveToTopOnSelect != enabled {
+			t.Fatalf("preference %v did not survive reload", enabled)
+		}
+	}
+}

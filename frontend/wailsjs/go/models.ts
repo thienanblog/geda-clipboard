@@ -34,6 +34,7 @@ export namespace settings {
 	    notifyOnCopy: boolean;
 	    notifyOnPaste: boolean;
 	    pasteOnSelect: boolean;
+	    moveToTopOnSelect: boolean;
 	    hotkey: string;
 	    launchAtLogin: boolean;
 	    showDockIcon: boolean;
@@ -59,6 +60,7 @@ export namespace settings {
 	        this.notifyOnCopy = source["notifyOnCopy"];
 	        this.notifyOnPaste = source["notifyOnPaste"];
 	        this.pasteOnSelect = source["pasteOnSelect"];
+	        this.moveToTopOnSelect = source["moveToTopOnSelect"];
 	        this.hotkey = source["hotkey"];
 	        this.launchAtLogin = source["launchAtLogin"];
 	        this.showDockIcon = source["showDockIcon"];
@@ -263,6 +265,8 @@ export namespace store {
 	    // Go type: time
 	    lastCopy: any;
 	    copyCount: number;
+	    // Go type: time
+	    lastUsed: any;
 	    pinned: boolean;
 	    pinPriority?: number;
 	
@@ -291,6 +295,7 @@ export namespace store {
 	        this.firstCopy = this.convertValues(source["firstCopy"], null);
 	        this.lastCopy = this.convertValues(source["lastCopy"], null);
 	        this.copyCount = source["copyCount"];
+	        this.lastUsed = this.convertValues(source["lastUsed"], null);
 	        this.pinned = source["pinned"];
 	        this.pinPriority = source["pinPriority"];
 	    }

@@ -9,6 +9,12 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+### Added
+
+- Choosing a clipboard entry now moves it to the top of its history group.
+  Preferences can keep the existing order instead. Pin priority, source copy
+  counts and copy statistics are preserved.
+
 ## [0.14.0] - 2026-09-23
 
 ### Changed

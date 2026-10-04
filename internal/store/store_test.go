@@ -1110,3 +1110,64 @@ func TestMissingIndexIsNotPreserved(t *testing.T) {
 		t.Errorf("missing index produced a preserved copy (err = %v)", err)
 	}
 }
+
+func TestMoveToTopPersistsWithoutChangingCaptureMetadata(t *testing.T) {
+	s := newStore(t, 10)
+	base := time.Now().Add(-time.Hour)
+	first, _ := addText(t, s, "first", base)
+	second, _ := addText(t, s, "second", base.Add(time.Minute))
+	if !s.MoveToTop(first.ID) {
+		t.Fatal("existing entry was not promoted")
+	}
+	got := s.List("")
+	if got[0].ID != first.ID || got[1].ID != second.ID || s.Count() != 2 {
+		t.Fatal("reuse did not move the existing entry to the front")
+	}
+	if got[0].CopyCount != first.CopyCount || !got[0].LastCopy.Equal(first.LastCopy) || !got[0].FirstCopy.Equal(first.FirstCopy) || got[0].SourceApp != first.SourceApp || got[0].LastUsed.IsZero() {
+		t.Fatal("reuse changed capture metadata or did not record recency")
+	}
+	if s.MoveToTop("missing") {
+		t.Fatal("missing entry reported as promoted")
+	}
+	if err := s.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenAt(filepath.Dir(s.indexPath), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if reopened.List("")[0].ID != first.ID {
+		t.Fatal("promoted order was lost after reopening")
+	}
+	addText(t, reopened, "third", time.Now().Add(time.Second))
+	if reopened.List("")[0].Text != "third" {
+		t.Fatal("new capture should precede reused entries")
+	}
+}
+
+func TestMoveToTopPreservesPinGroupsAndPriority(t *testing.T) {
+	s := newStore(t, 10)
+	base := time.Now().Add(-time.Hour)
+	first, _ := addText(t, s, "first", base)
+	second, _ := addText(t, s, "second", base.Add(time.Minute))
+	third, _ := addText(t, s, "third", base.Add(2*time.Minute))
+	for _, id := range []string{first.ID, second.ID} {
+		if _, err := s.TogglePin(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.MoveToTop(first.ID)
+	if s.List("")[0].ID != first.ID {
+		t.Fatal("automatic pin was not promoted")
+	}
+	if err := s.SetPinnedPriority([]string{second.ID, first.ID}); err != nil {
+		t.Fatal(err)
+	}
+	s.MoveToTop(first.ID)
+	s.MoveToTop(third.ID)
+	got := s.List("")
+	if got[0].ID != second.ID || got[1].ID != first.ID || got[2].ID != third.ID {
+		t.Fatal("reuse changed manual pin order or crossed pin groups")
+	}
+}

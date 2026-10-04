@@ -528,6 +528,10 @@ onUnmounted(() => {
 
         <section>
           <h2>History</h2>
+          <label class="check">
+            <input v-model="cfg.moveToTopOnSelect" type="checkbox" @change="save" />
+            <span>Move chosen entries to the top<em>When off, copying or pasting an entry keeps its position. Pinned entries stay above other history, and priority pins keep their order.</em></span>
+          </label>
           <div class="field">
             <span class="field-label">Keep at most</span>
             <input v-model.number="cfg.maxItems" class="num" type="number" min="10" max="2000" step="10" @change="onNumberChange('maxItems')" />
@@ -554,7 +558,7 @@ onUnmounted(() => {
           <h2>Priority</h2>
           <p class="hint pinned-intro">
             Priority entries stay in your chosen order. Everything else pinned remains below
-            them and follows the most recent copy time.
+            them and follows the most recent copy or use when moving chosen entries to the top is enabled.
           </p>
 
           <div
