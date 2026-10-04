@@ -114,6 +114,10 @@ type Item struct {
 	LastCopy  time.Time `json:"lastCopy"`
 	CopyCount int       `json:"copyCount"`
 
+	// LastUsed tracks history reuse separately so capture counts and provenance
+	// still describe copies from source applications.
+	LastUsed time.Time `json:"lastUsed"`
+
 	Pinned bool `json:"pinned"`
 	// PinPriority is zero while a pinned entry follows normal recency ordering.
 	// Positive values place user-arranged entries first, in ascending order.

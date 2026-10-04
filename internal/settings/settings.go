@@ -45,6 +45,9 @@ type Settings struct {
 	// false, selecting an entry only puts it on the clipboard.
 	PasteOnSelect bool `json:"pasteOnSelect"`
 
+	// MoveToTopOnSelect promotes entries after a successful clipboard write.
+	MoveToTopOnSelect bool `json:"moveToTopOnSelect"`
+
 	// Hotkey toggles the popup, e.g. "cmd+shift+v" or "ctrl+shift+v".
 	Hotkey string `json:"hotkey"`
 
@@ -103,23 +106,24 @@ const layoutFlyout = 1
 // Defaults returns the settings a fresh install starts with.
 func Defaults() Settings {
 	return Settings{
-		MaxItems:         200,
-		NotifyOnCopy:     true,
-		NotifyOnPaste:    true,
-		PasteOnSelect:    true,
-		Hotkey:           defaultHotkey,
-		LaunchAtLogin:    false,
-		ShowDockIcon:     false,
-		IgnoredApps:      []string{},
-		IgnoreConcealed:  true,
-		IgnoreTransient:  true,
-		CaptureImages:    true,
-		PopupWidth:       420,
-		PopupHeight:      520,
-		PopupPlacement:   PlacementCursor,
-		PreviewOnHover:   true,
-		ImagePreviewSize: PreviewComfortable,
-		LayoutVersion:    layoutFlyout,
+		MaxItems:          200,
+		NotifyOnCopy:      true,
+		NotifyOnPaste:     true,
+		PasteOnSelect:     true,
+		MoveToTopOnSelect: true,
+		Hotkey:            defaultHotkey,
+		LaunchAtLogin:     false,
+		ShowDockIcon:      false,
+		IgnoredApps:       []string{},
+		IgnoreConcealed:   true,
+		IgnoreTransient:   true,
+		CaptureImages:     true,
+		PopupWidth:        420,
+		PopupHeight:       520,
+		PopupPlacement:    PlacementCursor,
+		PreviewOnHover:    true,
+		ImagePreviewSize:  PreviewComfortable,
+		LayoutVersion:     layoutFlyout,
 	}
 }
 

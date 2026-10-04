@@ -76,6 +76,7 @@ FEATURES
 • Searchable history of text, images and file groups, filterable by content type or source application
 • The popup opens at the pointer, or under the menu bar icon, whichever you prefer
 • Notifications on copy and on reuse, each one switchable on its own
+• Chosen entries move to the top of their history group by default; Preferences can keep their position instead, while manual pin priority stays unchanged
 • Choosing an entry returns you to the app you came from, so pasting is one ⌘V
 • Copying the same thing again bumps the entry you already have and raises its counter, instead of filling the list with duplicates
 • One combined day, week, month or year chart compares all copies, text, images and repeated copies, with independently hideable series and bounded counters rather than per-copy events

@@ -187,12 +187,38 @@ func (s *Store) SetMaxItems(n int) {
 	}
 }
 
-// sortItems orders newest-first by last copy time. Pin ordering is applied at
-// read time in List so unpinning restores chronological position.
+// sortItems orders newest-first by the latest capture or promoted use. Pin
+// ordering is applied at read time so unpinning restores recency order.
 func (s *Store) sortItems() {
 	sort.SliceStable(s.items, func(i, j int) bool {
-		return s.items[i].LastCopy.After(s.items[j].LastCopy)
+		return recency(s.items[i]).After(recency(s.items[j]))
 	})
+}
+
+func recency(it *Item) time.Time {
+	if it.LastUsed.After(it.LastCopy) {
+		return it.LastUsed
+	}
+	return it.LastCopy
+}
+
+// MoveToTop promotes a successfully reused entry without counting our own
+// clipboard write as another capture. Pin groups and manual priority stay intact.
+func (s *Store) MoveToTop(id string) bool {
+	s.mu.Lock()
+	for idx, it := range s.items {
+		if it.ID != id {
+			continue
+		}
+		it.LastUsed = time.Now()
+		s.items = append(s.items[:idx], s.items[idx+1:]...)
+		s.items = append([]*Item{it}, s.items...)
+		s.mu.Unlock()
+		s.scheduleSave()
+		return true
+	}
+	s.mu.Unlock()
+	return false
 }
 
 // normalisePinPriorities repairs hand-edited or older indexes into a compact,

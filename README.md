@@ -25,6 +25,10 @@ were working in.
 - **Copy counting** — re-copying the same content bumps an existing entry and
   increments its counter rather than creating a duplicate. This is driven by the
   OS clipboard change counter, so an identical re-copy is still detected.
+- **History order** — choosing an entry moves it to the top of its history
+  group by default. Turn off **Move chosen entries to the top** in
+  **Preferences › Clipboard** to keep its position. Pinned entries remain above
+  unpinned history, and manually prioritised pins keep their order.
 - **Local statistics** — one day, week, month or year chart compares all copies,
   text, images and repeats at once. Each series can be hidden independently and
   a shared tooltip shows the nearest time bucket. Only bounded counters for the
