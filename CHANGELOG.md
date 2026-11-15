@@ -9,6 +9,8 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-15
+
 ### Added
 
 - Preferences now include a header search across categories, with keyboard
@@ -484,7 +486,8 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.1...v0.13.0
