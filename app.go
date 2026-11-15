@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -14,7 +15,9 @@ import (
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"geda-clipboard/internal/appdir"
 	"geda-clipboard/internal/autostart"
+	"geda-clipboard/internal/backup"
 	"geda-clipboard/internal/clipboard"
 	"geda-clipboard/internal/hotkeys"
 	"geda-clipboard/internal/imageutil"
@@ -129,6 +132,10 @@ type App struct {
 	popupEpoch uint64
 	anchor     tray.Anchor
 	iconCache  map[string]string
+
+	// pendingImport is the backup the user picked in the open panel. Import
+	// accepts only that file, so the frontend can never name an arbitrary path.
+	pendingImport string
 
 	// hotkeyErr holds why the shortcut is not registered. A shortcut is the
 	// only way into a menu bar app for most users, so a failure that only
@@ -750,6 +757,92 @@ func shouldHideOnBlur(visiblePopup, foreground bool) bool {
 }
 
 // ---------------------------------------------------------------------------
+// Frontend API: backup
+// ---------------------------------------------------------------------------
+
+var backupFilters = []wruntime.FileFilter{{
+	DisplayName: "Geda Clipboard Backup (*." + backup.Extension + ")",
+	Pattern:     "*." + backup.Extension,
+}}
+
+// BackupPreview describes the file chosen for import before anything merges.
+type BackupPreview struct {
+	Name     string          `json:"name"`
+	Manifest backup.Manifest `json:"manifest"`
+}
+
+// ExportBackup asks where to save a backup and writes it. It returns the saved
+// file name, or an empty string when the user cancels the panel.
+func (a *App) ExportBackup(opts backup.Options) (string, error) {
+	if a.ctx == nil || a.stats == nil || a.store == nil {
+		return "", fmt.Errorf("backup unavailable")
+	}
+	name := "Geda Clipboard Backup " + time.Now().Format("2006-01-02") + "." + backup.Extension
+	path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
+		Title:                "Export Backup",
+		DefaultFilename:      name,
+		Filters:              backupFilters,
+		CanCreateDirectories: true,
+	})
+	if err != nil || path == "" {
+		return "", err
+	}
+	if _, err := backup.WriteFile(path, opts, a.stats, a.store, appVersion); err != nil {
+		return "", fmt.Errorf("export backup: %w", err)
+	}
+	return filepath.Base(path), nil
+}
+
+// ChooseBackup asks for a backup to import and returns what it contains. An
+// empty name means the user cancelled.
+func (a *App) ChooseBackup() (BackupPreview, error) {
+	if a.ctx == nil {
+		return BackupPreview{}, fmt.Errorf("backup unavailable")
+	}
+	path, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{
+		Title:   "Import Backup",
+		Filters: backupFilters,
+	})
+	if err != nil || path == "" {
+		return BackupPreview{}, err
+	}
+	manifest, err := backup.Inspect(path)
+	if err != nil {
+		return BackupPreview{}, err
+	}
+	a.mu.Lock()
+	a.pendingImport = path
+	a.mu.Unlock()
+	return BackupPreview{Name: filepath.Base(path), Manifest: manifest}, nil
+}
+
+// ImportBackup merges the backup chosen by ChooseBackup into history and
+// statistics.
+func (a *App) ImportBackup() (backup.Result, error) {
+	a.mu.Lock()
+	path := a.pendingImport
+	a.pendingImport = ""
+	a.mu.Unlock()
+	if path == "" {
+		return backup.Result{}, fmt.Errorf("choose a backup to import first")
+	}
+	if a.stats == nil || a.store == nil {
+		return backup.Result{}, fmt.Errorf("backup unavailable")
+	}
+	dataDir, err := appdir.Data()
+	if err != nil {
+		return backup.Result{}, err
+	}
+	result, err := backup.Import(path, dataDir, a.stats, a.store, func(png []byte) (string, int, int, error) {
+		return imageutil.Thumbnail(png, thumbMaxW, thumbMaxH)
+	})
+	if result.History.Added > 0 || result.History.Merged > 0 || result.History.Evicted > 0 {
+		a.emitHistoryChanged()
+	}
+	return result, err
+}
+
+// ---------------------------------------------------------------------------
 // Frontend API: history
 // ---------------------------------------------------------------------------
 
@@ -776,6 +869,22 @@ func (a *App) GetFilterOptions() store.FilterOptions {
 		options.Sources = []store.SourceOption{}
 	}
 	return options
+}
+
+// maxIconKeysPerRequest bounds one icon lookup. The popup asks only for rows
+// within two viewports, which hold far fewer distinct applications.
+const maxIconKeysPerRequest = 64
+
+// GetSourceIcons returns source-application icons keyed by SourceIconKey for
+// the rows the popup is about to show. Missing keys are omitted.
+func (a *App) GetSourceIcons(keys []string) map[string]string {
+	if a.store == nil || len(keys) == 0 {
+		return map[string]string{}
+	}
+	if len(keys) > maxIconKeysPerRequest {
+		keys = keys[:maxIconKeysPerRequest]
+	}
+	return a.store.SourceIcons(keys)
 }
 
 // GetItem returns bounded display data for one entry. The popup list uses

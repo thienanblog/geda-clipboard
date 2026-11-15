@@ -34,11 +34,6 @@ const hovered = ref(-1)
 /** Set while the user is driving the list from the keyboard, so the card can
  *  follow the selection with the mouse away. */
 const keyboardNav = ref(false)
-/** True until the keyboard has claimed the list. A freshly opened popup, or a
- *  new search, already highlights the first row without the user having walked
- *  to it, so the first Down has to land on that row instead of stepping past
- *  it -- otherwise opening the popup and pressing Down skips the newest entry. */
-const primed = ref(true)
 const previewOnHover = ref(true)
 const imagePreviewSize = ref<'compact' | 'comfortable' | 'large'>('comfortable')
 const clearPinnedOnHistoryClear = ref(false)
@@ -181,13 +176,26 @@ const rowLayout = computed(() => {
   return { offsets, heights, total }
 })
 
+/** Index of the first row whose bottom edge reaches pixel, by binary search,
+ *  so scrolling a long history does not rescan it from the top. */
+function firstRowAt(pixel: number): number {
+  const { offsets, heights } = rowLayout.value
+  let low = 0
+  let high = offsets.length
+  while (low < high) {
+    const mid = (low + high) >> 1
+    if (offsets[mid] + heights[mid] < pixel) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
 const visibleRows = computed<VirtualRow[]>(() => {
   const { offsets, heights } = rowLayout.value
   const overscan = 240
   const firstPixel = Math.max(0, scrollTop.value - overscan)
   const lastPixel = scrollTop.value + viewportHeight.value + overscan
-  let start = 0
-  while (start < items.value.length && offsets[start] + heights[start] < firstPixel) start++
+  const start = firstRowAt(firstPixel)
   let end = start
   while (end < items.value.length && offsets[end] < lastPixel) end++
   return items.value.slice(start, end).map((item, relativeIndex) => {
@@ -196,12 +204,79 @@ const visibleRows = computed<VirtualRow[]>(() => {
   })
 })
 
+/** Source-app icons are not part of the list payload: one data URL per row
+ *  would make every popup open pay for the whole history. Icons are fetched by
+ *  app key, and only for rows inside the current and the next viewport, so the
+ *  popup opens at the same cost however long the history is. The map is
+ *  intentionally non-reactive; the version counter invalidates the template. */
+const iconCache = new Map<string, string>()
+const iconRequested = new Set<string>()
+const iconCacheVersion = ref(0)
+
+function sourceIcon(item: store.Item): string {
+  void iconCacheVersion.value
+  return item.sourceIconKey ? iconCache.get(item.sourceIconKey) ?? '' : ''
+}
+
+/** Keys of rows from the top of the viewport to the bottom of the next page. */
+const iconWindowKeys = computed<string[]>(() => {
+  const { offsets } = rowLayout.value
+  const lastPixel = scrollTop.value + Math.max(viewportHeight.value, 1) * 2
+  const keys = new Set<string>()
+  for (let index = firstRowAt(scrollTop.value); index < items.value.length; index++) {
+    if (offsets[index] >= lastPixel) break
+    const key = items.value[index].sourceIconKey
+    if (key) keys.add(key)
+  }
+  return [...keys]
+})
+
+watch(
+  iconWindowKeys,
+  (keys) => {
+    const pending = keys.filter((key) => !iconRequested.has(key))
+    // The bridge accepts at most 64 keys per call (maxIconKeysPerRequest).
+    for (let start = 0; start < pending.length; start += 64) {
+      requestIcons(pending.slice(start, start + 64))
+    }
+  },
+  { immediate: true },
+)
+
+function requestIcons(missing: string[]): void {
+  missing.forEach((key) => iconRequested.add(key))
+  void App.GetSourceIcons(missing)
+    .then((icons) => {
+      let changed = false
+      for (const key of missing) {
+        const icon = icons[key]
+        if (icon) {
+          iconCache.set(key, icon)
+          changed = true
+        }
+      }
+      if (changed) iconCacheVersion.value++
+    })
+    .catch(() => {
+      // Let the next history refresh retry; the row keeps its placeholder.
+      missing.forEach((key) => iconRequested.delete(key))
+    })
+}
+
+/** A key that had no icon may gain one when that app is captured again. */
+function forgetMissingIcons(): void {
+  for (const key of iconRequested) {
+    if (!iconCache.has(key)) iconRequested.delete(key)
+  }
+}
+
 /** How many characters of a row's label actually fit. The reserved slice
- *  covers the row padding and the shared trailing slot for the pin or ⌘n
- *  accelerator; 6.6px is the average advance of the 13px UI font. */
+ *  covers the row padding, the 16px source icon with its gap, and the shared
+ *  trailing slot for the pin or ⌘n accelerator; 6.6px is the average advance
+ *  of the 13px UI font. */
 const labelBudget = computed(() => {
   if (listWidth.value === 0) return 60
-  return Math.max(16, Math.min(160, Math.round((listWidth.value - 85) / 6.6)))
+  return Math.max(16, Math.min(160, Math.round((listWidth.value - 109) / 6.6)))
 })
 
 function label(item: store.Item): string {
@@ -319,8 +394,8 @@ function focusSearch(): void {
   })
 }
 
-/** State a newly shown popup starts from: no search, newest entry highlighted,
- *  and the list not yet claimed by the keyboard. */
+/** State a newly shown popup starts from: no search and the newest entry
+ *  highlighted. */
 function resetForOpen(): void {
   query.value = ''
   contentFilter.value = 'all'
@@ -328,7 +403,6 @@ function resetForOpen(): void {
   selected.value = 0
   hovered.value = -1
   keyboardNav.value = false
-  primed.value = true
   nextTick(() => {
     if (listEl.value) listEl.value.scrollTop = 0
     scrollTop.value = 0
@@ -430,14 +504,15 @@ watch(
   { immediate: true },
 )
 
+/** Steps the highlight. A freshly opened popup already highlights the newest
+ *  row, and Enter pastes it, so the first Down moves to the second row. An
+ *  earlier version spent the first Down "claiming" the highlighted row, which
+ *  made users press Down twice and paste the wrong entry when they did not. */
 function move(delta: number): void {
   if (empty.value) return
   const count = items.value.length
-  const claiming = primed.value && delta > 0
   keyboardNav.value = true
-  primed.value = false
-  // The first Down only claims the highlight that is already on the first row.
-  if (!claiming) selected.value = (selected.value + delta + count) % count
+  selected.value = (selected.value + delta + count) % count
   scrollSelectedIntoView()
 }
 
@@ -627,14 +702,12 @@ function onKeydown(event: KeyboardEvent): void {
     case 'Home':
       event.preventDefault()
       keyboardNav.value = true
-      primed.value = false
       selected.value = 0
       scrollSelectedIntoView()
       break
     case 'End':
       event.preventDefault()
       keyboardNav.value = true
-      primed.value = false
       selected.value = Math.max(0, items.value.length - 1)
       scrollSelectedIntoView()
       break
@@ -660,7 +733,6 @@ watch([query, contentFilter, sourceFilter], () => {
   selected.value = 0
   hovered.value = -1
   keyboardNav.value = false
-  primed.value = true
   if (listEl.value) listEl.value.scrollTop = 0
   scrollTop.value = 0
   void reload()
@@ -708,6 +780,7 @@ onMounted(() => {
   disposers.push(
     EventsOn('history:changed', () => {
       clearItemCache()
+      forgetMissingIcons()
       void reload()
       void loadFilterOptions()
     }),
@@ -877,7 +950,7 @@ onUnmounted(() => {
             :key="row.item.id"
             :ref="(el) => setRowElement(row.index, el as HTMLElement | null)"
             class="row-shell"
-            :class="{ 'row-selected': row.index === selected }"
+            :class="{ 'row-selected': row.index === selected, 'row-pinned': row.item.pinned }"
             :style="{ height: row.height + 'px', transform: `translateY(${row.top}px)` }"
             role="listitem"
             :aria-posinset="row.index + 1"
@@ -895,6 +968,11 @@ onUnmounted(() => {
               @mousedown="keepSearchFocus"
               @click="activate(row.index)"
             >
+              <!-- Fixed-size slot so rows do not shift when the icon arrives,
+                   and rows without a known source still line up. -->
+              <span class="source-icon" aria-hidden="true" :title="row.item.sourceApp || undefined">
+                <img v-if="sourceIcon(row.item)" :src="sourceIcon(row.item)" alt="" decoding="async" />
+              </span>
               <img
                 v-if="row.item.kind === 'image' && thumbnail(row.item)"
                 :src="thumbnail(row.item)"
@@ -1223,6 +1301,25 @@ onUnmounted(() => {
   cursor: default;
 }
 
+.source-icon {
+  display: grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--hover-bg);
+}
+
+.source-icon:has(img) {
+  background: transparent;
+}
+
+.source-icon img {
+  width: 16px;
+  height: 16px;
+}
+
 .file-row {
   display: flex;
   flex: 1;
@@ -1236,6 +1333,14 @@ onUnmounted(() => {
 
 .row-shell:hover {
   background: var(--hover-bg);
+}
+
+.row-pinned {
+  background: var(--pinned-bg);
+}
+
+.row-pinned:hover {
+  background: var(--pinned-hover-bg);
 }
 
 .row-selected,

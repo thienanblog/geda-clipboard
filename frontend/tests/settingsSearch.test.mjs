@@ -24,3 +24,8 @@ test('search only exposes controls supported by the current build and platform',
   assert.deepEqual(ids('accessibility', { ...desktop, canPaste: true }), [])
   assert.deepEqual(ids('accessibility'), ['paste-permission'])
 })
+
+test('search finds backup by English and Vietnamese terms', () => {
+  assert.deepEqual(ids('export'), ['backup'])
+  assert.deepEqual(ids('sao lưu'), ['backup'])
+})

@@ -339,6 +339,69 @@ async function resetDefaults(): Promise<void> {
   await save()
 }
 
+const backupIncludeHistory = ref(false)
+const backupIncludeImages = ref(true)
+const backupBusy = ref(false)
+
+async function exportBackup(): Promise<void> {
+  if (backupBusy.value) return
+  backupBusy.value = true
+  try {
+    const name = await App.ExportBackup({
+      includeHistory: backupIncludeHistory.value,
+      includeImages: backupIncludeHistory.value && backupIncludeImages.value,
+    })
+    if (name) flash(`Saved ${name}`)
+  } catch (err) {
+    flash(String(err))
+  } finally {
+    backupBusy.value = false
+  }
+}
+
+function plural(count: number, noun: string): string {
+  return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`
+}
+
+async function importBackup(): Promise<void> {
+  if (backupBusy.value) return
+  backupBusy.value = true
+  try {
+    const preview = await App.ChooseBackup()
+    if (!preview.name) return
+    const manifest = preview.manifest
+    const parts: string[] = []
+    if (manifest.statistics) parts.push('statistics')
+    if (manifest.history) {
+      parts.push(
+        manifest.images
+          ? `${plural(manifest.historyCount, 'history entry')} with ${plural(manifest.imageCount, 'image')}`
+          : `${plural(manifest.historyCount, 'history entry')} without images`,
+      )
+    }
+    const created = new Date(manifest.createdAt).toLocaleString()
+    const message =
+      `Import ${parts.join(' and ') || 'nothing'} from ${preview.name} (created ${created})?\n\n` +
+      'It is merged with what is already here: matching entries are combined and importing the same ' +
+      'backup again changes nothing. If history then exceeds your history limit, the oldest unpinned ' +
+      'entries are removed, as they would be when copying.'
+    if (!window.confirm(message)) return
+    const result = await App.ImportBackup()
+    const history = result.history
+    const summary: string[] = []
+    if (history.added) summary.push(`${plural(history.added, 'new entry')} added`)
+    if (history.merged) summary.push(`${plural(history.merged, 'entry')} already present`)
+    if (history.evicted) summary.push(`${plural(history.evicted, 'older entry')} over the history limit removed`)
+    if (result.statistics) summary.push('statistics merged')
+    flash(summary.length ? `Imported: ${summary.join(', ')}` : 'Nothing to import')
+    await loadPinned()
+  } catch (err) {
+    flash(String(err))
+  } finally {
+    backupBusy.value = false
+  }
+}
+
 async function clearHistoryAndStatistics(): Promise<void> {
   if (!cfg.value) return
   const message = cfg.value.clearPinnedOnHistoryClear
@@ -762,12 +825,42 @@ onUnmounted(() => {
           </div>
         </section>
 
+        <section data-setting="backup" :class="{ 'setting-highlight': highlightedSetting === 'backup' }" tabindex="-1">
+          <h2>Backup</h2>
+          <p class="hint">
+            Save your statistics, and optionally your clipboard history, to a file you can
+            import on another computer. Importing merges with what is already here.
+          </p>
+          <label class="check">
+            <input v-model="backupIncludeHistory" type="checkbox" />
+            <span>
+              Include clipboard history
+              <em>Text, pinned entries and file references. File references only work where the same files exist.</em>
+            </span>
+          </label>
+          <label class="check nested" :class="{ disabled: !backupIncludeHistory }">
+            <input v-model="backupIncludeImages" type="checkbox" :disabled="!backupIncludeHistory" />
+            <span>
+              Include images
+              <em>Images can make the backup much larger. Without them, image entries are left out.</em>
+            </span>
+          </label>
+          <p v-if="backupIncludeHistory" class="hint warn" role="note">
+            The backup file is not encrypted. Anyone who has it can read everything you copied,
+            including passwords and personal details. Keep it somewhere private.
+          </p>
+          <div class="btn-row">
+            <button class="btn" type="button" :disabled="backupBusy" @click="exportBackup">Export…</button>
+            <button class="btn" type="button" :disabled="backupBusy" @click="importBackup">Import…</button>
+          </div>
+        </section>
+
         <section data-setting="clear-data" :class="{ 'setting-highlight': highlightedSetting === 'clear-data' }" tabindex="-1">
           <h2>Local data</h2>
           <p class="hint">
-            Clipboard content and statistics stay on this device. Statistics contain only
-            hourly and daily counters — never content, hashes, or source applications — and
-            are automatically limited to 370 days.
+            Clipboard content and statistics stay on this device unless you export a backup.
+            Statistics contain only hourly and daily counters — never content, hashes, or source
+            applications — and are automatically limited to 370 days.
           </p>
           <div class="btn-row">
             <button class="btn danger" type="button" @click="clearHistoryAndStatistics">
@@ -1044,6 +1137,14 @@ h2 {
   font-style: normal;
   font-size: 11.5px;
   color: var(--fg-dim);
+}
+
+.check.nested {
+  padding-left: 22px;
+}
+
+.check.disabled {
+  opacity: 0.5;
 }
 
 .field {

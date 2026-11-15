@@ -379,6 +379,118 @@ func monthlyPoints(counts map[string]Counts, now time.Time) []Point {
 	return points
 }
 
+// Export returns the aggregate counters in their on-disk form, for a
+// user-initiated backup. The data is content-free, like the file it mirrors.
+func (s *Store) Export() ([]byte, error) {
+	return s.ExportAt(time.Now())
+}
+
+// ExportAt is Export with an explicit current time for tests.
+func (s *Store) ExportAt(now time.Time) ([]byte, error) {
+	s.mu.Lock()
+	s.advanceLocked(now)
+	s.pruneLocked(now)
+	data, err := json.Marshal(s.data)
+	s.mu.Unlock()
+	return data, err
+}
+
+// Merge folds exported counters into this store. Each bucket keeps the larger
+// of the two values rather than their sum, so importing the same backup twice,
+// or restoring a backup into the machine that produced it, never inflates the
+// totals. The cost is an undercount on days both machines were used, which is
+// the smaller error for a restore-oriented feature.
+func (s *Store) Merge(raw []byte) error {
+	return s.MergeAt(raw, time.Now())
+}
+
+// Validate reports whether raw is exported statistics this version can merge,
+// so a restore can reject a damaged file before changing anything.
+func Validate(raw []byte) error {
+	_, err := parseExport(raw)
+	return err
+}
+
+func parseExport(raw []byte) (diskData, error) {
+	var imported diskData
+	if err := json.Unmarshal(raw, &imported); err != nil {
+		return diskData{}, fmt.Errorf("backup statistics are damaged")
+	}
+	if imported.Version != diskVersion {
+		return diskData{}, fmt.Errorf("unsupported statistics backup version %d", imported.Version)
+	}
+	return imported, nil
+}
+
+// MergeAt is Merge with an explicit current time for tests.
+func (s *Store) MergeAt(raw []byte, now time.Time) error {
+	imported, err := parseExport(raw)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	s.advanceLocked(now)
+	today := s.data.HourlyDate
+
+	if imported.StartedAt != nil && (s.data.StartedAt == nil || imported.StartedAt.Before(*s.data.StartedAt)) {
+		started := *imported.StartedAt
+		s.data.StartedAt = &started
+	}
+
+	if imported.HourlyDate == today {
+		for hour := range s.data.Hourly {
+			s.data.Hourly[hour] = maxCounts(s.data.Hourly[hour], imported.Hourly[hour])
+		}
+	} else if validPastDate(imported.HourlyDate, today) {
+		var total Counts
+		for _, hour := range imported.Hourly {
+			total.addCounts(hour)
+		}
+		if total.Total > 0 {
+			s.maxDayLocked(imported.HourlyDate, total)
+		}
+	}
+	for _, day := range imported.ArchivedDay {
+		// Today's local counts live in the hourly bucket and cannot absorb a
+		// daily total without inventing an hour, so a backup's copy of today
+		// (or a future day from a skewed clock) is left out.
+		if validPastDate(day.Date, today) {
+			s.maxDayLocked(day.Date, day.Counts)
+		}
+	}
+	s.pruneLocked(now)
+	s.mu.Unlock()
+
+	return s.Flush()
+}
+
+func validPastDate(date, today string) bool {
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return false
+	}
+	return date < today
+}
+
+func maxCounts(a, b Counts) Counts {
+	return Counts{
+		Total:    max(a.Total, b.Total),
+		Text:     max(a.Text, b.Text),
+		Image:    max(a.Image, b.Image),
+		Repeated: max(a.Repeated, b.Repeated),
+	}
+}
+
+func (s *Store) maxDayLocked(date string, counts Counts) {
+	for i := range s.data.ArchivedDay {
+		if s.data.ArchivedDay[i].Date == date {
+			s.data.ArchivedDay[i].Counts = maxCounts(s.data.ArchivedDay[i].Counts, counts)
+			return
+		}
+	}
+	s.data.ArchivedDay = append(s.data.ArchivedDay, dayBucket{Date: date, Counts: counts})
+}
+
 // Reset removes all aggregate statistics while leaving clipboard history and
 // preferences untouched.
 func (s *Store) Reset() error {

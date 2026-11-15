@@ -509,6 +509,23 @@ func (s *Store) ListPreviewFiltered(query, kind, source string) []*Item {
 	return items
 }
 
+// SourceIcons returns the stored icon for each requested source-app key.
+// Lists leave icons out so opening the popup never copies one data URL per
+// row through the bridge; the popup asks only for the keys of rows near the
+// viewport. Keys without an icon are omitted from the result.
+func (s *Store) SourceIcons(keys []string) map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	icons := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if icon, ok := s.icons[key]; ok && icon != "" {
+			icons[key] = icon
+		}
+	}
+	return icons
+}
+
 // ListPinned returns pinned entries in the same order List presents them.
 func (s *Store) ListPinned() []*Item {
 	s.mu.RLock()

@@ -85,13 +85,14 @@ FEATURES
 • Every entry records the app it came from, with its icon, and when you first and last copied it
 • Point at any row for a card with a content preview, metadata, and copy history
 • Pin the entries you use every day, arrange their priority, and keep them safe when clearing routine history
+• Export your statistics, and optionally your history, to a backup file and import it on a new Mac
 • Keyboard throughout: ⌘1 to ⌘9 to pick an entry, ⌥P to pin, ⌥⌫ to delete, Esc to dismiss
 • A global shortcut you can rebind to whatever is free on your Mac
 • Launch at login, and no Dock icon unless you ask for one
 
 PRIVATE BY DESIGN
 
-Nothing Geda records ever leaves your Mac. There is no account, no sync, no telemetry, no third-party analytics, and no network connection of any kind. History and bounded usage counters live in the app's own sandboxed folder, and removing the app removes them.
+Nothing Geda records ever leaves your Mac on its own. There is no account, no sync, no telemetry, no third-party analytics, and no network connection of any kind. History and bounded usage counters live in the app's own sandboxed folder, and removing the app removes them. A backup is written only when you export one, to the place you choose.
 
 Password managers are skipped automatically. They mark what they put on the clipboard as confidential, and Geda honours that convention. You can also name any application whose copies should never be recorded, cap how much history is kept, and clear the lot whenever you like.
 
@@ -234,6 +235,8 @@ Copy some text in any app first so the history has something in it.
 The app asks for one optional permission: Notifications, for the alert shown when something is copied or reused. It can be declined and the app remains fully functional apart from that alert.
 
 This build requests no Accessibility permission and contains no Accessibility code. Submission 989d447d (version 0.7.0, build 5) was rejected under guideline 2.4.5 because the app used Accessibility to send a Command-V keystroke. That feature has been removed from this build entirely, along with the preferences that offered it: the keystroke path is compiled out, and the binary references no Accessibility API. Choosing an entry now copies it to the clipboard and returns the user to the application they were working in, and they press Command-V themselves.
+
+The read-write user-selected files entitlement is used only by Preferences > Privacy > Backup, which saves a backup file to the location chosen in the standard save panel and imports one chosen in the open panel.
 
 The app makes no network connections. It has no account, no telemetry, no third-party analytics and no third-party SDKs, and this build contains no auto-update mechanism. The Statistics tab aggregates copy counts entirely on the device. It stores no clipboard content, hashes, source-application names or per-copy event log, automatically discards totals older than 370 days, and can be reset independently under Preferences. This on-device processing is not transmitted to us or any third party.
 ```

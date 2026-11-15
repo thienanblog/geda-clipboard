@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"hash"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -153,11 +154,22 @@ func hashText(s string) string {
 	return hex.EncodeToString(sum[:16])
 }
 
-// hashBytes derives the dedupe key for a binary payload.
+// hashBytes derives the dedupe key for a binary payload. Imports hash staged
+// files through the same two helpers, so restored images dedupe against
+// captured ones.
 func hashBytes(b []byte) string {
+	h := newBlobHash()
+	h.Write(b)
+	return blobHashSum(h)
+}
+
+func newBlobHash() hash.Hash {
 	h := sha256.New()
 	h.Write([]byte("b:"))
-	h.Write(b)
+	return h
+}
+
+func blobHashSum(h hash.Hash) string {
 	return hex.EncodeToString(h.Sum(nil)[:16])
 }
 
