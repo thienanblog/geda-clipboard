@@ -9,20 +9,13 @@ changes and the patch version for fixes.
 
 ## [Unreleased]
 
-## [0.15.0] - 2026-11-15
+## [0.16.0] - 2026-11-15
+
+GitHub and Homebrew builds also gain the 0.15.0 changes, which were released
+through the Mac App Store only.
 
 ### Added
 
-- Preferences now include a header search across categories, with keyboard
-  access and direct navigation to matching controls.
-- File and folder capture can be disabled independently of image capture.
-  Existing entries remain available.
-- Notification content previews can be hidden without disabling copy and reuse
-  alerts. Application names remain visible.
-- Resetting preferences now asks for confirmation and preserves history.
-- Choosing a clipboard entry now moves it to the top of its history group.
-  Preferences can keep the existing order instead. Pin priority, source copy
-  counts and copy statistics are preserved.
 - Each popup row shows the icon of the application the entry was copied from.
   Icons load only for the rows in view and the next page, so opening the popup
   does not slow down as history grows.
@@ -44,6 +37,24 @@ changes and the patch version for fixes.
 - Pressing Down right after opening the popup moves to the second entry. The
   first entry is already highlighted, so the first Down no longer has to be
   pressed twice.
+
+## [0.15.0] - 2026-10-04
+
+This version was released through the Mac App Store only. Its changes reach
+the GitHub and Homebrew builds in 0.16.0.
+
+### Added
+
+- Preferences now include a header search across categories, with keyboard
+  access and direct navigation to matching controls.
+- File and folder capture can be disabled independently of image capture.
+  Existing entries remain available.
+- Notification content previews can be hidden without disabling copy and reuse
+  alerts. Application names remain visible.
+- Resetting preferences now asks for confirmation and preserves history.
+- Choosing a clipboard entry now moves it to the top of its history group.
+  Preferences can keep the existing order instead. Pin priority, source copy
+  counts and copy statistics are preserved.
 
 ## [0.14.0] - 2026-09-23
 
@@ -486,8 +497,9 @@ First release.
 - Builds are unsigned. macOS Gatekeeper will need the app to be opened via
   right-click → Open the first time.
 
-[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.15.0...HEAD
-[0.15.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.14.0...v0.15.0
+[Unreleased]: https://github.com/thienanblog/geda-clipboard/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.14.0...v0.16.0
+[0.15.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.14.0...v0.16.0
 [0.14.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/thienanblog/geda-clipboard/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/thienanblog/geda-clipboard/compare/v0.12.1...v0.13.0
