@@ -122,12 +122,18 @@ For the first submission this field is not shown. From the second version on,
 paste that release's section from `CHANGELOG.md`, rewritten for users rather
 than for the repository.
 
-For version 0.14.0:
+For version 0.15.0:
 
 ```
-• Closing the popup with Esc or the shortcut now returns you to the app you were using.
-• Copy Only also returns you to that app, ready to paste with ⌘V.
-• Clicking another window keeps focus where you clicked.
+• Each entry now shows the icon of the app it was copied from, so you can tell where it came from at a glance.
+• Pinned entries have a light background that sets them apart from the rest of your history.
+• Pressing Down right after opening the popup now moves straight to the next entry.
+• Back up your statistics, and optionally your clipboard history, from Preferences › Privacy, then import the file on another Mac. Importing merges with what is already there.
+• Find settings faster with a search field across all preference categories. Press ⌘F to search and jump directly to a matching setting.
+• Choose whether to record images, files and folders independently. Existing history stays available when capture is turned off.
+• Hide clipboard content in notifications while keeping copy and reuse alerts and application names visible.
+• Chosen entries now move to the top of their history group. Turn this off in Preferences to keep their position; manually prioritised pins keep their order.
+• Resetting preferences now asks for confirmation and keeps your clipboard history.
 ```
 
 ## 8. App Privacy
