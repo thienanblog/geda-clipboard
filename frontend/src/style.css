@@ -42,6 +42,10 @@
 
   --hairline: rgba(255, 255, 255, 0.1);
   --hover-bg: rgba(255, 255, 255, 0.07);
+  /* Pinned rows carry a faint accent wash so they read as a group at a glance
+     without competing with the solid selection highlight. */
+  --pinned-bg: rgba(10, 99, 212, 0.13);
+  --pinned-hover-bg: rgba(10, 99, 212, 0.2);
   --field-bg: rgba(255, 255, 255, 0.1);
 
 
@@ -63,6 +67,8 @@
 
     --hairline: rgba(0, 0, 0, 0.1);
     --hover-bg: rgba(0, 0, 0, 0.05);
+    --pinned-bg: rgba(26, 110, 224, 0.07);
+    --pinned-hover-bg: rgba(26, 110, 224, 0.12);
     --field-bg: rgba(0, 0, 0, 0.06);
 
 

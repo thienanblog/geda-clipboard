@@ -201,3 +201,62 @@ func TestTimezoneChangeCanMoveHourlyDateBackwards(t *testing.T) {
 		t.Fatalf("backward date rollover = date %s totals %+v", s.data.HourlyDate, got.Totals)
 	}
 }
+
+func TestMergeKeepsLargerBucketsAndIsIdempotent(t *testing.T) {
+	now := localTime(2026, time.August, 26, 15)
+
+	source, err := OpenAt(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, at := range []time.Time{
+		localTime(2026, time.August, 24, 10),
+		localTime(2026, time.August, 24, 11),
+		localTime(2026, time.August, 26, 9),
+	} {
+		if err := source.RecordAt(KindText, false, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exported, err := source.ExportAt(now)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	target, err := OpenAt(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := target.RecordAt(KindImage, false, localTime(2026, time.August, 26, 9)); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := target.MergeAt(exported, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	week, err := target.SnapshotAt(RangeWeek, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Aug 24 carries the backup's two copies; at 09:00 today the larger
+	// bucket (one) wins per field, giving one text and one image.
+	want := Counts{Total: 3, Text: 3, Image: 1}
+	if week.Totals != want {
+		t.Fatalf("totals after double merge = %+v, want %+v", week.Totals, want)
+	}
+	if week.StartedAt == nil || !week.StartedAt.Equal(localTime(2026, time.August, 24, 10)) {
+		t.Fatalf("startedAt = %v, want the earlier backup start", week.StartedAt)
+	}
+}
+
+func TestMergeRejectsUnknownVersion(t *testing.T) {
+	s, err := OpenAt(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Merge([]byte(`{"version":99}`)); err == nil {
+		t.Fatal("expected an error for an unsupported version")
+	}
+}

@@ -40,7 +40,8 @@ were working in.
   latest 370 days are stored, so copying more often does not make the statistics
   file grow.
 - **Provenance** — each entry records the app it came from, with its icon, plus
-  first/last copy time.
+  first/last copy time. The popup shows that icon at the start of each row,
+  loading it only for the rows in view and the next page.
 - **Universal Clipboard** — copies handed over from an iPhone or iPad are
   recorded and notified like any other, labelled *Universal Clipboard* rather
   than blamed on whichever Mac app happened to be frontmost, and never dropped
@@ -49,6 +50,15 @@ were working in.
 - **Pin** entries to keep them past the history limit, arrange important pins
   above the automatically ordered ones, and clear routine history without
   losing pinned content. Pinned clearing remains available as an opt-in.
+  Pinned rows carry a light accent background.
+- **Backup and restore** — **Preferences › Privacy › Backup** exports
+  statistics and, optionally, history with or without images to a
+  `.gedabackup` file, and imports it on another computer. Importing merges:
+  matching entries are combined, importing the same file again changes
+  nothing, and the history limit still applies to unpinned entries. The file is a plain ZIP archive and is not
+  encrypted, so a backup that includes history is readable by anyone who has
+  it. Sandbox bookmarks for copied files are not exported, so restored file
+  entries work only where the same paths exist.
 - **Paste back into the previous app**: the app you came from is remembered
   before the popup steals focus, then refocused and sent the paste keystroke.
 - **Focus returns after closing the popup**: choosing an item, pressing Esc, or
@@ -238,6 +248,11 @@ blobs/           full-size PNGs for image entries
 
 History is written atomically (temp file + rename) and saves are coalesced, so
 rapid copying does not thrash the disk.
+
+A `.gedabackup` export is a ZIP archive containing `manifest.json`,
+`statistics.json` and, when history is included, `history.json`, `icons.json`
+and `images/`. Statistics merge by keeping the larger count in each bucket, and
+history merges by content, so a repeated import is a no-op.
 
 Statistics are aggregated rather than logged per event. The file holds 24
 hourly buckets for today and at most 369 earlier daily totals, with no clipboard

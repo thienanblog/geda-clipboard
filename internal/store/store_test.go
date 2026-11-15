@@ -1171,3 +1171,24 @@ func TestMoveToTopPreservesPinGroupsAndPriority(t *testing.T) {
 		t.Fatal("reuse changed manual pin order or crossed pin groups")
 	}
 }
+
+func TestSourceIconsReturnsOnlyRequestedKnownKeys(t *testing.T) {
+	s := newStore(t, 50)
+	const icon = "data:image/png;base64,SAFARI"
+	if _, _, err := s.Add(Capture{Kind: KindText, Text: "a", SourceApp: "Safari", SourceIconKey: "com.apple.Safari", SourceIcon: icon}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Add(Capture{Kind: KindText, Text: "b", SourceApp: "Notes", SourceIconKey: "com.apple.Notes"}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := s.SourceIcons([]string{"com.apple.Safari", "com.apple.Notes", "missing"})
+	if len(got) != 1 || got["com.apple.Safari"] != icon {
+		t.Fatalf("SourceIcons = %v, want only the Safari icon", got)
+	}
+	for _, it := range s.ListPreview("") {
+		if it.SourceIcon != "" {
+			t.Fatal("list previews must keep icons out of the bridge payload")
+		}
+	}
+}

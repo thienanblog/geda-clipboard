@@ -6,6 +6,10 @@ export function CheckForUpdates() {
   return window['go']['main']['App']['CheckForUpdates']();
 }
 
+export function ChooseBackup() {
+  return window['go']['main']['App']['ChooseBackup']();
+}
+
 export function ClearAll() {
   return window['go']['main']['App']['ClearAll']();
 }
@@ -38,6 +42,10 @@ export function Env() {
   return window['go']['main']['App']['Env']();
 }
 
+export function ExportBackup(arg1) {
+  return window['go']['main']['App']['ExportBackup'](arg1);
+}
+
 export function FrontendReady() {
   return window['go']['main']['App']['FrontendReady']();
 }
@@ -58,12 +66,20 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GetSourceIcons(arg1) {
+  return window['go']['main']['App']['GetSourceIcons'](arg1);
+}
+
 export function GetStatistics(arg1) {
   return window['go']['main']['App']['GetStatistics'](arg1);
 }
 
 export function HidePopup() {
   return window['go']['main']['App']['HidePopup']();
+}
+
+export function ImportBackup() {
+  return window['go']['main']['App']['ImportBackup']();
 }
 
 export function InitialView() {

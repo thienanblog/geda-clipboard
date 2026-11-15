@@ -82,7 +82,10 @@ held only on your Mac, inside the sandboxed container macOS gives the app:</p>
 </div>
 
 <p>No part of this leaves your computer. There is no cloud sync, no backup
-service and no telemetry.</p>
+service and no telemetry. If you export a backup from Preferences › Privacy,
+the file is written only to the location you choose, and it is not encrypted:
+a backup that includes clipboard history can be read by anyone who has the
+file.</p>
 
 <p>The statistics file contains counters only. It does not contain clipboard
 content, content hashes, source-application names or a log of individual copy
@@ -169,6 +172,9 @@ no text, file names or image details when previews are off.</p>
     statistics</em> under Preferences › Privacy. Preferences › Pinned has the
     opt-in switch that includes pinned entries in either history-clearing
     action.</li>
+  <li><strong>Move it yourself</strong> — <em>Export…</em> under Preferences ›
+    Privacy › Backup saves statistics and, if you choose, history to a file;
+    <em>Import…</em> merges such a file into this computer.</li>
   <li><strong>Limit what is kept</strong> — Preferences sets the maximum number
     of entries; older ones are discarded automatically.</li>
   <li><strong>Remove it all</strong> — deleting the app removes its container,

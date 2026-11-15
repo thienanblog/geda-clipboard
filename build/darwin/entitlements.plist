@@ -28,7 +28,9 @@
          bookmarks keeps history entries usable after this process exits. -->
     <key>com.apple.security.files.bookmarks.app-scope</key>
     <true/>
-    <key>com.apple.security.files.user-selected.read-only</key>
+    <!-- Read and write access to files the user picks in an open or save
+         panel. Write is for exporting a backup to the chosen location. -->
+    <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
 
     <!-- WKWebView's JavaScript engine. Without this the frontend either fails

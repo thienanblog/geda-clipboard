@@ -21,6 +21,27 @@ changes and the patch version for fixes.
 - Choosing a clipboard entry now moves it to the top of its history group.
   Preferences can keep the existing order instead. Pin priority, source copy
   counts and copy statistics are preserved.
+- Each popup row shows the icon of the application the entry was copied from.
+  Icons load only for the rows in view and the next page, so opening the popup
+  does not slow down as history grows.
+- Preferences › Privacy can export a backup of statistics and, optionally,
+  clipboard history with or without images, and import it on another computer.
+  Importing merges with existing data, and importing the same backup twice
+  changes nothing. Backups are not encrypted; the export warns about this when
+  history is included.
+
+### Changed
+
+- Pinned rows have a light accent background so they stand apart from
+  unpinned history.
+- The sandbox entitlement for user-selected files is now read-write, so a
+  backup can be saved to the location chosen in the save panel.
+
+### Fixed
+
+- Pressing Down right after opening the popup moves to the second entry. The
+  first entry is already highlighted, so the first Down no longer has to be
+  pressed twice.
 
 ## [0.14.0] - 2026-09-23
 
